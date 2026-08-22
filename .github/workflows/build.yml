@@ -13,22 +13,27 @@ jobs:
     - name: 📥 1. Clonar tus scripts locales (Fork)
       uses: actions/checkout@v4
       with:
-        path: 'fork-files' # Guarda tu Dockerfile en una carpeta segura
+        path: 'fork-files'
 
     - name: 🛠️ 2. Clonar Espejo Oficial de Mesa 24.0
       uses: actions/checkout@v4
       with:
         repository: 'mirror/mesa'
         ref: '24.0'
-        path: 'mesa-src' # Guarda el código de Mesa en otra carpeta aislada
+        path: 'mesa-src'
 
     - name: 🔄 3. Fusionar Entornos y Generar Cross-Files
       run: |
-        # Movemos el Dockerfile seguro a la raíz de trabajo para que Docker lo vea
+        # Mover el Dockerfile blindado a la raíz de trabajo principal
         mv fork-files/Dockerfile.build ./Dockerfile.build
 
-        # Copiamos los archivos del fork dentro de la carpeta de Mesa
+        # Copiar los archivos locales del fork dentro de la carpeta de Mesa
         cp -r fork-files/* ./mesa-src/ || true
+
+        # Crear el archivo simulador de Python limpio en la raíz exterior de Mesa
+        echo '#!/usr/bin/env python3' > ./mesa-src/mock_clc.py
+        echo 'import sys' >> ./mesa-src/mock_clc.py
+        echo 'sys.exit(0)' >> ./mesa-src/mock_clc.py
 
         # Generar los archivos TOML de configuración cruzada para Android 11 (API 30)
         echo "[constants]" > ./mesa-src/android-32.toml
@@ -76,7 +81,6 @@ jobs:
 
     - name: 🚀 7. Compilar Driver via Docker pasando el contexto unificado
       run: |
-        # Le indicamos a Docker que use 'mesa-src' como el directorio de trabajo raiz (.)
         docker build --no-cache \
           --build-arg NDK_PATH_HOST=${{ env.ANDROID_NDK_HOME }} \
           -f Dockerfile.build --target final -t bannerlator-bifrost-11 ./mesa-src
