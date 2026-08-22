@@ -26,20 +26,20 @@ jobs:
         docker builder prune -a -f
         docker system prune -a -f
 
-    - name: Build Driver via Multi-Stage Docker
+    - name: Build Driver via Docker
       run: |
         docker build --no-cache \
           --build-arg NDK_PATH_HOST=${{ env.ANDROID_NDK_HOME }} \
           -f Dockerfile.build --target final -t bannerlator-bifrost-builder .
 
-    - name: Extract Bannerlator Driver
+    - name: Extract Official Zip Package
       run: |
         docker create --name container-extract bannerlator-bifrost-builder
-        docker cp container-extract:/dist/panvk-bifrost-stubs-bannerlator.tar.xz ./panvk-bifrost-stubs-bannerlator.tar.xz
+        docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
         docker rm container-extract
 
-    - name: Upload Package to Artifacts
+    - name: Upload Zip Package to Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: panvk-bifrost-stubs-driver
-        path: panvk-bifrost-stubs-bannerlator.tar.xz
+        name: panvk-mali-bifrost-driver-zip
+        path: panvk-mali-bifrost-driver.zip
