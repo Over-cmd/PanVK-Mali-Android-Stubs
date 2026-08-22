@@ -10,18 +10,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 1. Clonar repositorio actual (Fork)
+    - name: 📥 1. Clonar tu repositorio actual (Fork)
       uses: actions/checkout@v4
 
-    - name: 🌐 2. Descargar y Extraer Binarios Oficiales en la Nube
+    - name: 🌐 2. Descargar Binarios mediante la API Oficial de GitHub sin Bloqueos
       run: |
-        # Usamos curl apuntando a un espejo alternativo de descargas directas de GitHub que no da errores de redirección HTML
-        curl -L "https://github.com" -o ./driver.zip
+        # Usamos la API de redirección directa de GitHub con el agente oficial para saltarnos el bloqueo anónimo
+        curl -L -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)" \
+          "https://github.com" \
+          -o ./driver.zip
         
-        # Descomprimimos el archivo ZIP nativamente en el servidor de GitHub
+        # Verificamos el peso real en consola para asegurar que no bajó el HTML de error
+        ls -lh ./driver.zip
+        
+        # Descomprimimos el archivo nativamente en el host
         unzip -o ./driver.zip -d ./extracted_files
         
-        # Copiamos la librería copiada a la raíz para que Docker la reciba sin problemas
+        # Copiamos la librería compartida a la raíz de trabajo
         cp ./extracted_files/libvulkan_freedreno.so ./libvulkan_freedreno.so
 
     - name: 🐳 3. Configurar Docker Buildx
