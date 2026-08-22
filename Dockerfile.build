@@ -29,8 +29,8 @@ COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
 WORKDIR /workspace
 
-# Clonar la rama de Mesa con soporte Vulkan 1.1 maduro para Bifrost
-RUN git clone --depth 1 --branch mesa-24.0.0 https://freedesktop.org .
+# SOLUCIÓN DEL EXIT CODE 128: Clonamos desde el espejo oficial de GitHub
+RUN git clone --depth 1 --branch mesa-24.0.0 https://github.com .
 
 # Copiar tus stubs locales de compatibilidad Android hacia el árbol de fuentes
 COPY . .
