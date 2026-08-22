@@ -17,20 +17,15 @@ RUN apt-get update && apt-get install -y \
     flex \
     m4 \
     pkg-config \
-    unzip \
     git \
     glslang-tools \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install meson
 
-# Descarga nativa y limpia del Android NDK r26b para romper la caché
-ADD https://google.com /tmp/ndk.zip
-
-RUN mkdir -p /opt \
-    && unzip -q /tmp/ndk.zip -d /opt \
-    && mv /opt/android-ndk-r26b ${ANDROID_NDK_HOME} \
-    && rm /tmp/ndk.zip
+# Recibir el NDK pre-descargado desde el host de GitHub Actions
+ARG NDK_PATH_HOST
+COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
 # Definir directorio de trabajo y copiar el código local de tu repositorio fork
 WORKDIR /workspace
