@@ -1,37 +1,21 @@
 # ==========================================
-# STAGE 1: Procesamiento de los Binarios Recibidos
-# ==========================================
-FROM ubuntu:20.04 AS extractor
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /tmp
-
-# Docker recibe el archivo ZIP de forma local y segura desde el host exterior
-COPY PanVK-v1.0-alpha.zip ./driver.zip
-
-RUN mkdir -p /dist/panvk-release/lib/armeabi-v7a \
-    && mkdir -p /dist/panvk-release/lib/arm64-v8a \
-    && unzip -q driver.zip -d /tmp/extracted
-
-# Mapeamos los archivos binarios al estándar de arquitectura de Bannerlator
-RUN cp /tmp/extracted/libvulkan_freedreno.so /dist/panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so \
-    && cp /tmp/extracted/libvulkan_freedreno.so /dist/panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
-
-# ==========================================
-# STAGE 2: Generación del Paquete Final para Android 11
+# STAGE 1: Generación del Paquete Final para Android 11
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
+# Instalar zip para el empaquetado comprimido final
 RUN apk add --no-cache zip
 
-# Copiar las librerías binarias estables extraídas en el Stage 1
-COPY --from=extractor /dist/panvk-release/ ./panvk-release/
+# Crear la estructura de directorios ICD admitida por Bannerlator
+RUN mkdir -p panvk-release/lib/armeabi-v7a \
+    && mkdir -p panvk-release/lib/arm64-v8a
 
-# Escribir el archivo manifiesto oficial meta.json para tu Bifrost en Android 11
+# Docker recibe los archivos binarios compartidos ya extraídos y listos desde el exterior
+COPY libvulkan_freedreno.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
+COPY libvulkan_freedreno.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
+
+# Forzamos los metadatos indicándole al emulador que es un driver Vulkan 1.1 listo para Bifrost sobre Android 11
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali (Bifrost Android 11)",\
@@ -43,7 +27,7 @@ RUN echo '{\
   "libraryName": "libvulkan_freedreno.so"\
 }' > ./panvk-release/meta.json
 
-# Empaquetamos todo directamente en el formato ZIP oficial
+# Empaquetamos todo directamente en el formato ZIP oficial que Bannerlator lee
 RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip ./*
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
