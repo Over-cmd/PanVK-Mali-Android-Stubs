@@ -11,7 +11,7 @@ RUN apk add --no-cache zip
 RUN mkdir -p panvk-release/lib/armeabi-v7a \
     && mkdir -p panvk-release/lib/arm64-v8a
 
-# Docker recibe los archivos binarios compartidos ya extraídos y listos desde el exterior
+# Copiar las librerías binarias reales que subiste de forma física a tu repositorio
 COPY libvulkan_freedreno.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY libvulkan_freedreno.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
 
