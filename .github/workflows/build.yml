@@ -1,4 +1,4 @@
-name: Build PanVK Bifrost Stubs for Bannerlator
+name: Build PanVK Bifrost Vulkan 1.1 for Android 11
 
 on:
   push:
@@ -6,17 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-bifrost-driver:
+  build-vulkan-driver:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-
-    - name: Set up Android NDK Nativo
-      uses: android-actions/setup-android@v3
-      with:
-        ndk-version: '26.1.10909125'
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -28,18 +23,16 @@ jobs:
 
     - name: Build Driver via Docker
       run: |
-        docker build --no-cache \
-          --build-arg NDK_PATH_HOST=${{ env.ANDROID_NDK_HOME }} \
-          -f Dockerfile.build --target final -t bannerlator-bifrost-builder .
+        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: Extract Official Zip Package
+    - name: Extract Zip Package
       run: |
-        docker create --name container-extract bannerlator-bifrost-builder
-        docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
+        docker create --name container-extract bannerlator-bifrost-11
+        docker cp container-extract:/dist/panvk-bifrost-android11.zip ./panvk-bifrost-android11.zip
         docker rm container-extract
 
     - name: Upload Zip Package to Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: panvk-mali-bifrost-driver-zip
-        path: panvk-mali-bifrost-driver.zip
+        name: panvk-bifrost-vulkan11-driver
+        path: panvk-bifrost-android11.zip
