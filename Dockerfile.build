@@ -1,33 +1,33 @@
 # ==========================================
-# STAGE 1: Generación del Paquete Final para Android 11
+# STAGE 1: Generación del Paquete Final Estructurado
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Instalar zip para el empaquetado comprimido final
+# Instalar zip para comprimir el paquete final
 RUN apk add --no-cache zip
 
-# Crear la estructura de directorios ICD admitida por Bannerlator
-RUN mkdir -p panvk-release/lib/armeabi-v7a \
-    && mkdir -p panvk-release/lib/arm64-v8a
+# Crear la carpeta de salida donde se agruparán los 4 archivos requeridos
+RUN mkdir -p panvk-release
 
-# Docker recibe las librerías binarias nativas desde la raíz unificada del host
-COPY libvulkan_freedreno.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
-COPY libvulkan_freedreno.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
+# Copiar los tres archivos binarios compartidos generados por el host
+COPY libGL.so.1 ./panvk-release/libGL.so.1
+COPY libglapi.so.0 ./panvk-release/libglapi.so.0
+COPY libvulkan_freedreno.so ./panvk-release/libvulkan_freedreno.so
 
-# Escribir el archivo manifiesto oficial meta.json para tu Bifrost en Android 11
+# Escribir el manifiesto meta.json con el formato exacto requerido
 RUN echo '{\
   "schemaVersion": 1,\
-  "name": "Mesa PanVK Driver for Mali (Bifrost Android 11)",\
-  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running natively on Android 11 via API 30 backport stubs.",\
-  "author": "Mesa Community / Over-cmd",\
-  "packageVersion": "24.0-bifrost",\
+  "name": "Mesa PanVK Driver for Mali",\
+  "description": "Custom PanVK Vulkan driver for MediaTek",\
+  "author": "Mesa Community",\
+  "packageVersion": "26.2",\
   "vendor": "Mesa",\
   "driverVersion": "1",\
   "libraryName": "libvulkan_freedreno.so"\
 }' > ./panvk-release/meta.json
 
-# Empaquetamos todo directamente en el formato ZIP oficial que Bannerlator lee
-RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip ./*
+# Comprimir los 4 archivos juntos en la raíz del ZIP final
+RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
