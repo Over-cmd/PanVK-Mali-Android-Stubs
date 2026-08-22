@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de compilación cruzada con NDK r25c
+# STAGE 1: Entorno base con LLVM nativo para compilar herramientas host
 # ==========================================
 FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar exclusivamente herramientas de compilación esenciales para ARM
+# Instalar herramientas esenciales y dependencias de LLVM exigidas de forma nativa por Mesa
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -19,17 +19,13 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
+    llvm-dev \
+    libclang-dev \
+    clang \
+    libelf-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install meson mako
-
-# 🛠️ BYPASS NATIVO: Docker recibe el script simulador listo desde el host exterior
-RUN mkdir -p /tmp/mesa-compiler/bin
-COPY mock_clc.py /tmp/mesa-compiler/bin/mesa-clc
-RUN chmod +x /tmp/mesa-compiler/bin/mesa-clc
-
-# Colocar el ejecutable simulado en el PATH global
-ENV PATH="/tmp/mesa-compiler/bin:${PATH}"
 
 # Recibir el NDK pre-descargado de forma segura desde el host de GitHub Actions
 ARG NDK_PATH_HOST
@@ -39,8 +35,27 @@ WORKDIR /workspace
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación Cruzada de 32 Bits (API 30 - Android 11)
+# STAGE 2: Compilación e Instalación Oficial del Host Compiler (Mesa-CLC NATIVO)
 # ==========================================
+# Compilamos las herramientas del host activando drivers mínimos para que Meson no crashee
+RUN meson setup build-compiler \
+    -Dprefix=/tmp/mesa-compiler \
+    -Dbuildtype=release \
+    -Dplatforms= \
+    -Dgallium-drivers=swrast \
+    -Dvulkan-drivers=freedreno \
+    -Dmesa-clc=enabled \
+    && ninja -C build-compiler src/compiler/vulkan/tools/mesa-clc \
+    && mkdir -p /tmp/mesa-compiler/bin \
+    && cp build-compiler/src/compiler/vulkan/tools/mesa-clc /tmp/mesa-compiler/bin/
+
+# Colocar el compilador nativo legítimo en el PATH global
+ENV PATH="/tmp/mesa-compiler/bin:${PATH}"
+
+# ==========================================
+# STAGE 3: Compilación Cruzada de 32 Bits (API 30 - Android 11)
+# ==========================================
+# Cambiamos a -Dmesa-clc=system para consumir el binario real que acabamos de generar
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
@@ -48,11 +63,10 @@ RUN meson setup build-32 \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
     -Dmesa-clc=system \
-    -Dmesa-clc-path=/tmp/mesa-compiler/bin/mesa-clc \
     && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 3: Compilación Cruzada de 64 Bits (API 30 - Android 11)
+# STAGE 4: Compilación Cruzada de 64 Bits (API 30 - Android 11)
 # ==========================================
 RUN meson setup build-64 \
     --cross-file android-64.toml \
@@ -61,11 +75,10 @@ RUN meson setup build-64 \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
     -Dmesa-clc=system \
-    -Dmesa-clc-path=/tmp/mesa-compiler/bin/mesa-clc \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Empaquetado oficial en formato ZIP idéntico a la Alpha
+# STAGE 5: Empaquetado oficial en formato ZIP idéntico a la Alpha
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
@@ -73,15 +86,15 @@ WORKDIR /dist
 RUN mkdir -p panvk-bifrost-release/lib/armeabi-v7a \
     && mkdir -p panvk-bifrost-release/lib/arm64-v8a
 
-# Copiar y renombrar la librería Vulkan resultante mapeada al estándar de Bannerlator
+# Copiar y renombrar la librería Vulkan resultante
 COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/arm64-v8a/libvulkan_freedreno.so
 
-# Generar el meta.json oficial adaptado a tu Bifrost en Android 11
+# Generar el meta.json oficial
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11 con bypass estatico seguro.",\
+  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11 con compilador real LLVM host-clc.",\
   "author": "Mesa Community",\
   "packageVersion": "24.0",\
   "vendor": "Mesa",\
@@ -89,7 +102,7 @@ RUN echo '{\
   "libraryName": "libvulkan_freedreno.so"\
 }' > ./panvk-bifrost-release/meta.json
 
-# Empaquetar todo en formato ZIP
+# Empaquetar todo directamente en formato ZIP
 RUN apk add --no-cache zip \
     && cd panvk-bifrost-release \
     && zip -r ../panvk-mali-bifrost-driver.zip ./*
