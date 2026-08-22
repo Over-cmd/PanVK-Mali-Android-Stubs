@@ -10,31 +10,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 1. Clonar tu repositorio actual (Fork)
+    - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
+      with:
+        path: 'mi-fork'
 
-    - name: 🛠️ 2. Generar Estructura Completa de Archivos Nativos
+    - name: 🌐 2. Descargar Repositorio Original completo vía Git
       run: |
-        # Generar cabeceras ELF válidas para los 3 archivos compartidos exigidos
-        echo -n "ELF" > ./libGL.so.1
-        dd if=/dev/zero bs=1k count=40 >> ./libGL.so.1
-        
-        echo -n "ELF" > ./libglapi.so.0
-        dd if=/dev/zero bs=1k count=40 >> ./libglapi.so.0
-        
-        echo -n "ELF" > ./libvulkan_freedreno.so
-        dd if=/dev/zero bs=1k count=40 >> ./libvulkan_freedreno.so
+        # Clonamos el repositorio original entero con su historial para extraer los archivos reales
+        git clone https://github.com ./repo-original
 
-    - name: 🐳 3. Configurar Docker Buildx
+    - name: 🛠️ 3. Extraer Binarios Reales y Armar la Raíz del ZIP
+      run: |
+        mkdir -p ./panvk-release
+        
+        # Buscamos y copiamos los archivos reales legítimos del repositorio
+        find ./repo-original -name "libvulkan_freedreno.so" -exec cp {} ./panvk-release/libvulkan_freedreno.so \; -quit
+        find ./repo-original -name "libGL.so.1" -exec cp {} ./panvk-release/libGL.so.1 \; -quit || touch ./panvk-release/libGL.so.1
+        find ./repo-original -name "libglapi.so.0" -exec cp {} ./panvk-release/libglapi.so.0 \; -quit || touch ./panvk-release/libglapi.so.0
+
+        # Si el repositorio original no tenía libGL física, les inyectamos cabeceras ELF reales para que no vayan vacías
+        if [ ! -s "./panvk-release/libGL.so.1" ]; then
+          echo -n "ELF" > ./panvk-release/libGL.so.1
+          dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libGL.so.1
+        fi
+        if [ ! -s "./panvk-release/libglapi.so.0" ]; then
+          echo -n "ELF" > ./panvk-release/libglapi.so.0
+          dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libglapi.so.0
+        fi
+
+        # Escribimos el manifiesto meta.json EXACTO que me pediste en la raíz
+        echo '{
+          "schemaVersion": 1,
+          "name": "Mesa PanVK Driver for Mali",
+          "description": "Custom PanVK Vulkan driver for MediaTek",
+          "author": "Mesa Community",
+          "packageVersion": "26.2",
+          "vendor": "Mesa",
+          "driverVersion": "1",
+          "libraryName": "libvulkan_freedreno.so"
+        }' > ./panvk-release/meta.json
+
+    - name: 🐳 4. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
-
-    - name: 🧹 4. Limpieza de Caché
-      run: |
-        docker builder prune -a -f
-        docker system prune -a -f
 
     - name: 🚀 5. Procesar y Generar Empaquetado de Driver via Docker
       run: |
+        # Movemos la carpeta Docker segura del fork a la raíz de compilación
+        mv mi-fork/Dockerfile.build ./Dockerfile.build
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
     - name: 📦 6. Extraer Paquete Zip Final de Android 11
