@@ -1,85 +1,27 @@
-# ==========================================
-# STAGE 1: Entorno de configuración base unificado con NDK r25c
-# ==========================================
 FROM ubuntu:20.04 AS builder
-
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar herramientas de compilación compatibles con la rama Mesa 24
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    python3 \
-    python3-pip \
-    python3-setuptools \
-    ninja-build \
-    bison \
-    flex \
-    m4 \
-    pkg-config \
-    glslang-tools \
-    && rm -rf /var/lib/apt/lists/*
-
+    build-essential python3 python3-pip python3-setuptools \
+    ninja-build bison flex m4 pkg-config git glslang-tools && rm -rf /var/lib/apt/lists/*
 RUN pip3 install meson mako
 
-# Recibir el NDK pre-descargado de forma segura desde el host de GitHub Actions
 ARG NDK_PATH_HOST
 COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
-# Definir directorio de trabajo y recibir el código fuente de Mesa ya clonado por GitHub
 WORKDIR /workspace
 COPY . .
 
-# ==========================================
-# STAGE 2: Compilación Cruzada de 32 Bits (API 30 - Android 11)
-# ==========================================
-RUN meson setup build-32 \
-    --cross-file android-32.toml \
-    --buildtype=release \
-    -Dplatforms=android \
-    -Dgallium-drivers=swrast \
-    -Dvulkan-drivers=panfrost \
-    && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
+RUN meson setup build-32 --cross-file android-32.toml --buildtype=release -Dplatforms=android -Dgallium-drivers=swrast -Dvulkan-drivers=panfrost && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
+RUN meson setup build-64 --cross-file android-64.toml --buildtype=release -Dplatforms=android -Dgallium-drivers=swrast -Dvulkan-drivers=panfrost && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
-# ==========================================
-# STAGE 3: Compilación Cruzada de 64 Bits (API 30 - Android 11)
-# ==========================================
-RUN meson setup build-64 \
-    --cross-file android-64.toml \
-    --buildtype=release \
-    -Dplatforms=android \
-    -Dgallium-drivers=swrast \
-    -Dvulkan-drivers=panfrost \
-    && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
-
-# ==========================================
-# STAGE 4: Empaquetado oficial en formato ZIP con el Manifiesto de la Alpha
-# ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
-
-RUN mkdir -p panvk-bifrost-release/lib/armeabi-v7a \
-    && mkdir -p panvk-bifrost-release/lib/arm64-v8a
-
-# Copiar y renombrar la librería Vulkan al estándar cargable de la release alpha
+RUN mkdir -p panvk-bifrost-release/lib/armeabi-v7a panvk-bifrost-release/lib/arm64-v8a
 COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/arm64-v8a/libvulkan_freedreno.so
 
-# Generar el meta.json mapeado al nombre de archivo inyectado
-RUN echo '{\
-  "schemaVersion": 1,\
-  "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11.",\
-  "author": "Mesa Community",\
-  "packageVersion": "24.0",\
-  "vendor": "Mesa",\
-  "driverVersion": "1",\
-  "libraryName": "libvulkan_freedreno.so"\
-}' > ./panvk-bifrost-release/meta.json
-
-# Empaquetar el driver en un archivo comprimido .zip listo para el celular
-RUN apk add --no-cache zip \
-    && cd panvk-bifrost-release \
-    && zip -r ../panvk-mali-bifrost-driver.zip ./*
-
+RUN echo '{"schemaVersion":1,"name":"Mesa PanVK Driver for Mali","description":"Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11.","author":"Mesa Community","packageVersion":"24.0","vendor":"Mesa","driverVersion":"1","libraryName":"libvulkan_freedreno.so"}' > ./panvk-bifrost-release/meta.json
+RUN apk add --no-cache zip && cd panvk-bifrost-release && zip -r ../panvk-mali-bifrost-driver.zip ./*
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
