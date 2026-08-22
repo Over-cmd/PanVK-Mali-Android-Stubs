@@ -1,5 +1,5 @@
 # ==========================================
-# STAGE 1: Entorno de configuración base con NDK r25c
+# STAGE 1: Entorno de configuración base unificado
 # ==========================================
 FROM ubuntu:20.04 AS builder
 
@@ -19,17 +19,13 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
-    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install meson mako
 
-# Descargar e instalar el Android NDK r25c (El más estable y compatible para Android 11)
-ADD https://google.com /tmp/ndk.zip
-RUN mkdir -p /opt \
-    && unzip -q /tmp/ndk.zip -d /opt \
-    && mv /opt/android-ndk-r25c ${ANDROID_NDK_HOME} \
-    && rm /tmp/ndk.zip
+# Recibir el NDK pre-descargado de forma segura desde el host de GitHub Actions
+ARG NDK_PATH_HOST
+COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
 WORKDIR /workspace
 
@@ -59,7 +55,6 @@ RUN meson setup build-64 \
     -Dplatforms=android \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=disabled \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
