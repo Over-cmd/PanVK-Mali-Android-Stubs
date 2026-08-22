@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de configuración unificado con NDK
+# STAGE 1: Entorno de configuración unificado con NDK y Rust
 # ==========================================
 FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar herramientas críticas para Mesa 26.2+
+# Instalar herramientas críticas para Mesa 26.2+ (Incluye dependencias de Rust y Clang)
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -19,9 +19,15 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
+    rustc \
+    cargo \
+    clang \
+    libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Instalar los módulos de Python necesarios y bindgen para Rust
 RUN pip3 install meson mako
+RUN cargo install --root /usr/local bindgen-cli || true
 
 # Recibir el NDK pre-descargado de forma nativa desde GitHub Actions
 ARG NDK_PATH_HOST
@@ -30,18 +36,10 @@ COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 WORKDIR /workspace
 COPY . .
 
-# 🛠️ MOCK INTELIGENTE: Emula las respuestas requeridas por el validador de Mesa 26.2-rc1
-RUN mkdir -p /tmp/mock-bin && \
-    echo '#!/usr/bin/env python3\n\
-import sys\n\
-if "--version" in sys.argv:\n\
-    print("26.2.0")\n\
-sys.exit(0)' > /tmp/mock-bin/mesa-clc && \
-    chmod +x /tmp/mock-bin/mesa-clc
-
 # ==========================================
 # STAGE 2: Compilación Cruzada de 32 Bits (armeabi-v7a)
 # ==========================================
+# Al dejar -Dmesa-clc=auto, Meson usará las herramientas de Rust instaladas arriba
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
@@ -49,8 +47,7 @@ RUN meson setup build-32 \
     -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=system \
-    -Dmesa-clc-path=/tmp/mock-bin/mesa-clc \
+    -Dmesa-clc=auto \
     && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
@@ -63,8 +60,7 @@ RUN meson setup build-64 \
     -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=system \
-    -Dmesa-clc-path=/tmp/mock-bin/mesa-clc \
+    -Dmesa-clc=auto \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
@@ -85,7 +81,7 @@ COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.s
 RUN echo '[{\
   "id": "panvk-bifrost-stubs",\
   "name": "PanVK Mali Bifrost + Stubs (Experimental)",\
-  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android de la Alpha v1.0 e inyeccion inteligente de python-clc bypass.",\
+  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android e infraestructura oficial de Rust habilitada.",\
   "author": "Over-cmd",\
   "version": "26.2.0-bifrost",\
   "gpuTargets": ["mali"],\
