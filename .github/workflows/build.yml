@@ -24,13 +24,9 @@ jobs:
 
     - name: 🔄 3. Fusionar Entornos y Generar Cross-Files
       run: |
-        # Mover el Dockerfile blindado a la raíz de trabajo principal
         mv fork-files/Dockerfile.build ./Dockerfile.build
-
-        # Copiar los archivos locales del fork dentro de la carpeta de Mesa
         cp -r fork-files/* ./mesa-src/ || true
 
-        # Generar los archivos TOML de configuración cruzada para Android 11 (API 30)
         echo "[constants]" > ./mesa-src/android-32.toml
         echo "ndk_path = '/opt/android-ndk'" >> ./mesa-src/android-32.toml
         echo "toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'" >> ./mesa-src/android-32.toml
