@@ -13,6 +13,11 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Set up Android NDK Nativo (Seguro y Verificado)
+      uses: android-actions/setup-android@v3
+      with:
+        ndk-version: '26.1.10909125' # Esta es la nomenclatura oficial de Google para el NDK r26b
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -21,9 +26,12 @@ jobs:
         docker builder prune -a -f
         docker system prune -a -f
 
-    - name: Build Driver via Docker
+    - name: Build Driver via Docker injecting NDK
       run: |
-        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-builder .
+        # Pasamos la ruta del NDK nativo descargado por GitHub Actions hacia el constructor de Docker
+        docker build --no-cache \
+          --build-arg NDK_PATH_HOST=${{ env.ANDROID_NDK_HOME }} \
+          -f Dockerfile.build --target final -t bannerlator-bifrost-builder .
 
     - name: Extract Bannerlator Driver
       run: |
