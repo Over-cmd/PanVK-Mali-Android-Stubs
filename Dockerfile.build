@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de configuración unificado con NDK y Rust
+# STAGE 1: Entorno de configuración con NDK y Rust
 # ==========================================
 FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar herramientas críticas para Mesa 26.2+ (Incluye dependencias de Rust y Clang)
+# Instalar absolutamente todas las dependencias requeridas por Mesa 26.2
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -25,11 +25,10 @@ RUN apt-get update && apt-get install -y \
     libclang-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar los módulos de Python necesarios y bindgen para Rust
 RUN pip3 install meson mako
 RUN cargo install --root /usr/local bindgen-cli || true
 
-# Recibir el NDK pre-descargado de forma nativa desde GitHub Actions
+# Recibir el NDK pre-descargado desde el host de GitHub Actions
 ARG NDK_PATH_HOST
 COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
@@ -39,7 +38,6 @@ COPY . .
 # ==========================================
 # STAGE 2: Compilación Cruzada de 32 Bits (armeabi-v7a)
 # ==========================================
-# Al dejar -Dmesa-clc=auto, Meson usará las herramientas de Rust instaladas arriba
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
@@ -64,32 +62,34 @@ RUN meson setup build-64 \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Empaquetado Estructurado ICD para Bannerlator
+# STAGE 4: Empaquetado oficial idéntico a la Release v1.0-alpha
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Crear la jerarquía oficial que lee el Wrapper Version Manager de Bannerlator
-RUN mkdir -p panvk-bifrost-package/lib/armeabi-v7a \
-    && mkdir -p panvk-bifrost-package/lib/arm64-v8a
+# Crear estructura limpia para los artefactos de salida
+RUN mkdir -p panvk-release/lib/armeabi-v7a \
+    && mkdir -p panvk-release/lib/arm64-v8a
 
-# Copiar las librerías binarias nativas mapeadas al estándar cargable de la app
-COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/armeabi-v7a/libvulkan_wrapper.so
-COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/arm64-v8a/libvulkan_wrapper.so
+# Copiar y renombrar los archivos binarios resultantes tal como lo exige el manifiesto de la release
+COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
+COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
 
-# Escribir el archivo manifiesto wrappers.json
-RUN echo '[{\
-  "id": "panvk-bifrost-stubs",\
-  "name": "PanVK Mali Bifrost + Stubs (Experimental)",\
-  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android e infraestructura oficial de Rust habilitada.",\
-  "author": "Over-cmd",\
-  "version": "26.2.0-bifrost",\
-  "gpuTargets": ["mali"],\
-  "features": ["panvk_android_stubs", "vulkan_1_1"],\
-  "type": "icd_wrapper"\
-}]' > ./panvk-bifrost-package/wrappers.json
+# Si tu compilación de Gallium también generó libGL y libglapi, los añadimos. Por ahora, aseguramos el Vulkan Core:
+RUN echo '{\
+  "schemaVersion": 1,\
+  "name": "Mesa PanVK Driver for Mali (Bifrost Forced)",\
+  "description": "Custom PanVK Vulkan driver for MediaTek Bifrost architecture using Android UMD stubs.",\
+  "author": "Mesa Community / Over-cmd",\
+  "packageVersion": "26.2",\
+  "vendor": "Mesa",\
+  "driverVersion": "1",\
+  "libraryName": "libvulkan_freedreno.so"\
+}' > ./panvk-release/meta.json
 
-# Compresión nativa directa (.tar.xz)
-RUN cd panvk-bifrost-package && tar -cJf ../panvk-bifrost-stubs-bannerlator.tar.xz lib/ wrappers.json
+# Empaquetar todo en el archivo ZIP final estructurado
+RUN apk add --no-cache zip \
+    && cd panvk-release \
+    && zip -r ../panvk-mali-bifrost-driver.zip ./*
 
-CMD ["cat", "panvk-bifrost-stubs-bannerlator.tar.xz"]
+CMD ["cat", "panvk-mali-bifrost-driver.zip"]
