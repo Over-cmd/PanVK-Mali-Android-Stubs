@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno base con LLVM nativo para compilar mesa-clc
+# STAGE 1: Entorno base con dependencias LLVM nativas
 # ==========================================
 FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar herramientas esenciales y dependencias de LLVM exigidas por Mesa
+# Instalar herramientas esenciales y dependencias de LLVM exigidas por Mesa 24.0
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -35,20 +35,21 @@ WORKDIR /workspace
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación e Instalación del Compilador Host Real
+# STAGE 2: Compilación Oficial del Compilador Host con Drivers Base
 # ==========================================
+# Le damos un entorno de drivers mínimo a Meson para que acepte compilar mesa-clc
 RUN meson setup build-compiler \
     -Dprefix=/tmp/mesa-compiler \
     -Dbuildtype=release \
     -Dplatforms= \
-    -Dgallium-drivers= \
-    -Dvulkan-drivers= \
+    -Dgallium-drivers=swrast \
+    -Dvulkan-drivers=freedreno \
     -Dmesa-clc=enabled \
     && ninja -C build-compiler src/compiler/vulkan/tools/mesa-clc \
     && mkdir -p /tmp/mesa-compiler/bin \
     && cp build-compiler/src/compiler/vulkan/tools/mesa-clc /tmp/mesa-compiler/bin/
 
-# Colocar el compilador real generado en el PATH del sistema
+# Colocar el compilador nativo generado en el PATH del sistema
 ENV PATH="/tmp/mesa-compiler/bin:${PATH}"
 
 # ==========================================
