@@ -13,10 +13,22 @@ jobs:
     - name: 📥 1. Clonar repositorio actual (Fork)
       uses: actions/checkout@v4
 
-    - name: 🌐 2. Descargar Binarios Oficiales desde el Entorno Seguro de GitHub
+    - name: 🌐 2. Descargar y Extraer Binarios Nativamente en GitHub Actions
       run: |
-        # Descargamos el ZIP original usando curl con banderas de seguridad nativas
+        # Descarga segura usando curl con 5 reintentos integrados por caídas de red
         curl -L -s --retry 5 "https://github.com" -o ./PanVK-v1.0-alpha.zip
+        
+        # Descompresión nativa en el sistema host de Actions
+        unzip -q ./PanVK-v1.0-alpha.zip -d ./extracted_files
+        
+        # Validación física de seguridad para confirmar que el archivo no bajó vacío
+        if [ ! -f "./extracted_files/libvulkan_freedreno.so" ]; then
+          echo "ERROR: El archivo libvulkan_freedreno.so no se descargó correctamente o el ZIP está corrupto."
+          exit 1
+        fi
+        
+        # Colocamos el binario compartido en la raíz de trabajo para el comando COPY de Docker
+        cp ./extracted_files/libvulkan_freedreno.so ./libvulkan_freedreno.so
 
     - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
