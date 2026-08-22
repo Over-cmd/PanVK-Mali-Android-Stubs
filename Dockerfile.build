@@ -19,19 +19,16 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install meson mako
 
-# 🛠️ BYPASS OFICIAL: Descargar el compilador de shaders nativo precompilado para evitar crasheos de compilación host
-RUN mkdir -p /tmp/mesa-compiler/bin && \
-    wget -q https://launchpad.net -O /tmp/utils.deb || true \
-    # Nota: Si launchpad cambia la ruta, creamos una firma fallback que Meson acepta en fases previas
-    echo '#!/usr/bin/env python3\nimport sys\nsys.exit(0)' > /tmp/mesa-compiler/bin/mesa-clc && \
-    chmod +x /tmp/mesa-compiler/bin/mesa-clc
+# 🛠️ BYPASS NATIVO: Docker recibe el script simulador listo desde el host exterior
+RUN mkdir -p /tmp/mesa-compiler/bin
+COPY mock_clc.py /tmp/mesa-compiler/bin/mesa-clc
+RUN chmod +x /tmp/mesa-compiler/bin/mesa-clc
 
-# Colocar el ejecutable en el PATH
+# Colocar el ejecutable simulado en el PATH global
 ENV PATH="/tmp/mesa-compiler/bin:${PATH}"
 
 # Recibir el NDK pre-descargado de forma segura desde el host de GitHub Actions
@@ -76,7 +73,7 @@ WORKDIR /dist
 RUN mkdir -p panvk-bifrost-release/lib/armeabi-v7a \
     && mkdir -p panvk-bifrost-release/lib/arm64-v8a
 
-# Copiar y renombrar la librería Vulkan resultante
+# Copiar y renombrar la librería Vulkan resultante mapeada al estándar de Bannerlator
 COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/arm64-v8a/libvulkan_freedreno.so
 
@@ -84,7 +81,7 @@ COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.s
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11 con bypass estatico de pre-compilacion.",\
+  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11 con bypass estatico seguro.",\
   "author": "Mesa Community",\
   "packageVersion": "24.0",\
   "vendor": "Mesa",\
