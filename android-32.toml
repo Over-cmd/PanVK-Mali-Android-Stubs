@@ -1,7 +1,7 @@
 [constants]
 ndk_path = '/opt/android-ndk'
 toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'
-api = '24'
+api = '30'
 
 [binaries]
 c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'
