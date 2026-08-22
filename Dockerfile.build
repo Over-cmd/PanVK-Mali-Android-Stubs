@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de configuración unificado con NDK y Rust
+# STAGE 1: Entorno de configuración base con NDK r25c
 # ==========================================
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar las herramientas base requeridas por Mesa
+# Instalar herramientas de compilación compatibles con la rama Mesa 24
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -19,23 +19,28 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
-    rustc \
-    cargo \
-    clang \
-    libclang-dev \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install meson mako
 
-# Recibir el NDK pre-descargado de forma nativa desde GitHub Actions
-ARG NDK_PATH_HOST
-COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
+# Descargar e instalar el Android NDK r25c (El más estable y compatible para Android 11)
+ADD https://google.com /tmp/ndk.zip
+RUN mkdir -p /opt \
+    && unzip -q /tmp/ndk.zip -d /opt \
+    && mv /opt/android-ndk-r25c ${ANDROID_NDK_HOME} \
+    && rm /tmp/ndk.zip
 
 WORKDIR /workspace
+
+# Clonar la rama de Mesa con soporte Vulkan 1.1 maduro para Bifrost
+RUN git clone --depth 1 --branch mesa-24.0.0 https://freedesktop.org .
+
+# Copiar tus stubs locales de compatibilidad Android hacia el árbol de fuentes
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación Cruzada de 32 Bits (armeabi-v7a)
+# STAGE 2: Compilación Cruzada de 32 Bits (API 30 - Android 11)
 # ==========================================
 RUN meson setup build-32 \
     --cross-file android-32.toml \
@@ -43,11 +48,10 @@ RUN meson setup build-32 \
     -Dplatforms=android \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=disabled \
     && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 3: Compilación Cruzada de 64 Bits (arm64-v8a)
+# STAGE 3: Compilación Cruzada de 64 Bits (API 30 - Android 11)
 # ==========================================
 RUN meson setup build-64 \
     --cross-file android-64.toml \
@@ -59,34 +63,33 @@ RUN meson setup build-64 \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Empaquetado oficial con estructura idéntica a la Release v1.0-alpha
+# STAGE 4: Empaquetado en formato ZIP con el Manifiesto de la Alpha
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Crear la estructura de directorios
-RUN mkdir -p panvk-release/lib/armeabi-v7a \
-    && mkdir -p panvk-release/lib/arm64-v8a
+RUN mkdir -p panvk-bifrost-release/lib/armeabi-v7a \
+    && mkdir -p panvk-bifrost-release/lib/arm64-v8a
 
-# Copiar y renombrar las librerías al estándar exacto del meta.json original
-COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
-COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
+# Copiar y renombrar la librería Vulkan al estándar cargable de la release alpha
+COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/armeabi-v7a/libvulkan_freedreno.so
+COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/arm64-v8a/libvulkan_freedreno.so
 
-# Escribir el archivo manifiesto oficial de metadatos descubierto en la release
+# Generar el meta.json mapeado al nombre de archivo inyectado
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan driver for MediaTek",\
+  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11.",\
   "author": "Mesa Community",\
-  "packageVersion": "26.2",\
+  "packageVersion": "24.0",\
   "vendor": "Mesa",\
   "driverVersion": "1",\
   "libraryName": "libvulkan_freedreno.so"\
-}' > ./panvk-release/meta.json
+}' > ./panvk-bifrost-release/meta.json
 
-# Empaquetar todo directamente en formato ZIP
+# Empaquetar el driver en un archivo comprimido .zip listo para el celular
 RUN apk add --no-cache zip \
-    && cd panvk-release \
-    && zip -r ../panvk-mali-bifrost-driver.zip ./*
+    && cd panvk-bifrost-release \
+    && zip -r ../panvk-bifrost-android11.zip ./*
 
-CMD ["cat", "panvk-mali-bifrost-driver.zip"]
+CMD ["cat", "panvk-bifrost-android11.zip"]
