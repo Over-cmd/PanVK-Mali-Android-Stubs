@@ -10,45 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 1. Clonar repositorio actual (Fork)
+    - name: 📥 1. Clonar repositorio actual con los binarios físicos locales
       uses: actions/checkout@v4
 
-    - name: 🌐 2. Descargar y Extraer Binarios Nativamente en GitHub Actions
-      run: |
-        # Descarga segura usando curl con 5 reintentos integrados por caídas de red
-        curl -L -s --retry 5 "https://github.com" -o ./PanVK-v1.0-alpha.zip
-        
-        # Descompresión nativa en el sistema host de Actions
-        unzip -q ./PanVK-v1.0-alpha.zip -d ./extracted_files
-        
-        # Validación física de seguridad para confirmar que el archivo no bajó vacío
-        if [ ! -f "./extracted_files/libvulkan_freedreno.so" ]; then
-          echo "ERROR: El archivo libvulkan_freedreno.so no se descargó correctamente o el ZIP está corrupto."
-          exit 1
-        fi
-        
-        # Colocamos el binario compartido en la raíz de trabajo para el comando COPY de Docker
-        cp ./extracted_files/libvulkan_freedreno.so ./libvulkan_freedreno.so
-
-    - name: 🐳 3. Configurar Docker Buildx
+    - name: 🐳 2. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🧹 4. Limpieza de Caché
+    - name: 🧹 3. Limpieza de Caché
       run: |
         docker builder prune -a -f
         docker system prune -a -f
 
-    - name: 🚀 5. Procesar y Generar Empaquetado de Driver via Docker
+    - name: 🚀 4. Procesar y Generar Empaquetado de Driver via Docker
       run: |
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 6. Extraer Paquete Zip Final de Android 11
+    - name: 📦 5. Extraer Paquete Zip Final de Android 11
       run: |
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
         docker rm container-extract
 
-    - name: 📤 7. Subir Driver a los Artefactos de GitHub
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
