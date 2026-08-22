@@ -1,0 +1,38 @@
+name: Build PanVK Bifrost Stubs for Bannerlator
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-bifrost-driver:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Prune Docker Cache Aggressively
+      run: |
+        docker builder prune -a -f
+        docker system prune -a -f
+
+    - name: Build Driver via Docker
+      run: |
+        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-builder .
+
+    - name: Extract Bannerlator Driver
+      run: |
+        docker create --name container-extract bannerlator-bifrost-builder
+        docker cp container-extract:/dist/panvk-bifrost-stubs-bannerlator.tar.xz ./panvk-bifrost-stubs-bannerlator.tar.xz
+        docker rm container-extract
+
+    - name: Upload Package to Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: panvk-bifrost-stubs-driver
+        path: panvk-bifrost-stubs-bannerlator.tar.xz
