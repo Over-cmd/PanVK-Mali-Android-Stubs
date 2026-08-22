@@ -17,7 +17,6 @@ RUN apt-get update && apt-get install -y \
     flex \
     m4 \
     pkg-config \
-    git \
     glslang-tools \
     && rm -rf /var/lib/apt/lists/*
 
@@ -27,12 +26,8 @@ RUN pip3 install meson mako
 ARG NDK_PATH_HOST
 COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
+# Definir directorio de trabajo y recibir el código fuente de Mesa ya clonado por GitHub
 WORKDIR /workspace
-
-# CLONACIÓN CORRECTA: Usamos el espejo oficial exacto en la rama 24.0
-RUN git clone --depth 1 --branch 24.0 https://github.com .
-
-# Copiar tus stubs locales de compatibilidad Android hacia el árbol de fuentes
 COPY . .
 
 # ==========================================
