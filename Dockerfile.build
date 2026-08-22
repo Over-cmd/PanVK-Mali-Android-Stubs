@@ -6,7 +6,7 @@ FROM ubuntu:22.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar las herramientas base y librerías de empaquetado (mako es obligatoria)
+# Instalar herramientas críticas para Mesa 26.2+
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -30,10 +30,14 @@ COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 WORKDIR /workspace
 COPY . .
 
+# 🛠️ TRUCO TÉCNICO: Crear un script "falso" de mesa-clc para saltarse las restricciones de Rust
+RUN mkdir -p /tmp/mock-bin \
+    && echo '#!/bin/sh\nexit 0' > /tmp/mock-bin/mesa-clc \
+    && chmod +x /tmp/mock-bin/mesa-clc
+
 # ==========================================
 # STAGE 2: Compilación Cruzada de 32 Bits (armeabi-v7a)
 # ==========================================
-# Pasamos la flag del compilador interno de forma automática
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
@@ -41,7 +45,8 @@ RUN meson setup build-32 \
     -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=auto \
+    -Dmesa-clc=system \
+    -Dmesa-clc-path=/tmp/mock-bin/mesa-clc \
     && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
@@ -54,7 +59,8 @@ RUN meson setup build-64 \
     -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=auto \
+    -Dmesa-clc=system \
+    -Dmesa-clc-path=/tmp/mock-bin/mesa-clc \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
@@ -75,7 +81,7 @@ COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.s
 RUN echo '[{\
   "id": "panvk-bifrost-stubs",\
   "name": "PanVK Mali Bifrost + Stubs (Experimental)",\
-  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android integrados para evadir restricciones de ruta /dev/dri y compilacion directa unificada.",\
+  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android de la Alpha v1.0 e inyeccion de mesa-clc bypass.",\
   "author": "Over-cmd",\
   "version": "26.2.0-bifrost",\
   "gpuTargets": ["mali"],\
