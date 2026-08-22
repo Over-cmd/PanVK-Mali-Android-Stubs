@@ -9,6 +9,9 @@ cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'
 ar      = toolchain + '/llvm-ar'
 strip   = toolchain + '/llvm-strip'
 
+[properties]
+needs_exe_wrapper = true
+
 [host_machine]
 system = 'android'
 cpu_family = 'arm'
