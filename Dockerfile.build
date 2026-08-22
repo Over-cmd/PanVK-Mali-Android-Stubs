@@ -37,12 +37,11 @@ COPY . .
 # ==========================================
 # STAGE 2: Compilación Oficial del Compilador Host con Plataforma Headless
 # ==========================================
-# SOLUCIÓN: Cambiamos -Dplatforms= a android con stubs para evadir errores de dependencias de escritorio
+# CORRECCIÓN DEFINITIVA: Removida la bandera -Dandroid-stub=true para evitar que Meson aborte por argumentos inexistentes
 RUN meson setup build-compiler \
     -Dprefix=/tmp/mesa-compiler \
     -Dbuildtype=release \
     -Dplatforms=android \
-    -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=freedreno \
     -Dmesa-clc=enabled \
@@ -86,7 +85,7 @@ WORKDIR /dist
 RUN mkdir -p panvk-bifrost-release/lib/armeabi-v7a \
     && mkdir -p panvk-bifrost-release/lib/arm64-v8a
 
-# Copiar y renombrar la librería Vulkan resultante mapeada al estándar cargable
+# Copiar y renombrar la librería Vulkan resultante mapeada al estándar cargable de Bannerlator
 COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-release/lib/arm64-v8a/libvulkan_freedreno.so
 
