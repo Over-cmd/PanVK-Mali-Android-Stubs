@@ -30,11 +30,6 @@ jobs:
         # Copiar los archivos locales del fork dentro de la carpeta de Mesa
         cp -r fork-files/* ./mesa-src/ || true
 
-        # Crear el archivo simulador de Python limpio en la raíz exterior de Mesa
-        echo '#!/usr/bin/env python3' > ./mesa-src/mock_clc.py
-        echo 'import sys' >> ./mesa-src/mock_clc.py
-        echo 'sys.exit(0)' >> ./mesa-src/mock_clc.py
-
         # Generar los archivos TOML de configuración cruzada para Android 11 (API 30)
         echo "[constants]" > ./mesa-src/android-32.toml
         echo "ndk_path = '/opt/android-ndk'" >> ./mesa-src/android-32.toml
