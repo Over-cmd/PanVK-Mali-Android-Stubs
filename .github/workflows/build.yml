@@ -13,6 +13,11 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
+    - name: Set up Android NDK Nativo Seguro (r25c)
+      uses: android-actions/setup-android@v3
+      with:
+        ndk-version: '25.2.9519653' # Nomenclatura oficial de Google para el NDK r25c
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -21,9 +26,11 @@ jobs:
         docker builder prune -a -f
         docker system prune -a -f
 
-    - name: Build Driver via Docker
+    - name: Build Driver via Docker injecting NDK
       run: |
-        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
+        docker build --no-cache \
+          --build-arg NDK_PATH_HOST=${{ env.ANDROID_NDK_HOME }} \
+          -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
     - name: Extract Zip Package
       run: |
