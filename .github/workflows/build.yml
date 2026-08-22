@@ -22,11 +22,20 @@ jobs:
         ref: '24.0'
         path: 'mesa-src'
 
-    - name: 🔄 3. Fusionar Entornos y Generar Cross-Files
+    - name: 🔄 3. Fusionar Entornos y Generar Cross/Native Files
       run: |
         mv fork-files/Dockerfile.build ./Dockerfile.build
         cp -r fork-files/* ./mesa-src/ || true
 
+        # Generar el archivo NATIVO para compilar herramientas host (Mesa-CLC)
+        echo "[binaries]" > ./mesa-src/native-x86_64.toml
+        echo "c = 'clang'" >> ./mesa-src/native-x86_64.toml
+        echo "cpp = 'clang++'" >> ./mesa-src/native-x86_64.toml
+        echo "ar = 'llvm-ar'" >> ./mesa-src/native-x86_64.toml
+        echo "strip = 'llvm-strip'" >> ./mesa-src/native-x86_64.toml
+        echo "pkgconfig = 'pkg-config'" >> ./mesa-src/native-x86_64.toml
+
+        # Generar los archivos TOML de configuración cruzada para Android 11 (API 30)
         echo "[constants]" > ./mesa-src/android-32.toml
         echo "ndk_path = '/opt/android-ndk'" >> ./mesa-src/android-32.toml
         echo "toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'" >> ./mesa-src/android-32.toml
