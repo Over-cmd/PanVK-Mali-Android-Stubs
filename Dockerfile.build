@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de compilación base
+# STAGE 1: Entorno de configuración y NDK
 # ==========================================
 FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar herramientas necesarias para compilar Mesa
+# Instalar herramientas críticas para Mesa 26.2+ (Incluye soporte para Rust/Clang si se requiere)
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -19,61 +19,83 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
+    libvulkan-dev \
+    libelf-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install meson
+RUN pip3 install meson mako
 
 # Recibir el NDK pre-descargado desde el host de GitHub Actions
 ARG NDK_PATH_HOST
 COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
-# Definir directorio de trabajo y copiar el código local de tu repositorio fork
 WORKDIR /workspace
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación de 32 Bits (armeabi-v7a)
+# STAGE 2: Compilación de Herramientas Host Nativa (Mesa-CLC)
+# ==========================================
+# Requerido obligatoriamente por PanVK para generar Shaders fuera de línea
+RUN meson setup build-host \
+    --buildtype=release \
+    -Dplatforms=x11 \
+    -Dgallium-drivers=swrast \
+    -Dvulkan-drivers= \
+    -Dtools=panfrost \
+    -Dmesa-clc=enabled \
+    && ninja -C build-host/ src/compiler/glsl/glsl_compiler src/compiler/vulkan/tools/mesa-clc
+
+# ==========================================
+# STAGE 3: Compilación de 32 Bits (armeabi-v7a)
 # ==========================================
 FROM builder AS build-32
+COPY --from=builder /workspace/build-host /workspace/build-host
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
     -Dplatforms=android \
+    -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
+    -Dmesa-clc=system \
+    && meson configure build-32 -Dmesa-clc-path=/workspace/build-host/src/compiler/vulkan/tools/mesa-clc \
     && ninja -C build-32/
 
 # ==========================================
-# STAGE 3: Compilación de 64 Bits (arm64-v8a)
+# STAGE 4: Compilación de 64 Bits (arm64-v8a)
 # ==========================================
 FROM builder AS build-64
+COPY --from=builder /workspace/build-host /workspace/build-host
 RUN meson setup build-64 \
     --cross-file android-64.toml \
     --buildtype=release \
     -Dplatforms=android \
+    -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
+    -Dmesa-clc=system \
+    && meson configure build-64 -Dmesa-clc-path=/workspace/build-host/src/compiler/vulkan/tools/mesa-clc \
     && ninja -C build-64/
 
 # ==========================================
-# STAGE 4: Empaquetado ICD Driver para Bannerlator
+# STAGE 5: Empaquetado final para Bannerlator
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Estructurar carpetas para el Wrapper Version Manager de Bannerlator
+# Estructurar la jerarquía de directorios ICD
 RUN mkdir -p panvk-bifrost-package/lib/armeabi-v7a \
     && mkdir -p panvk-bifrost-package/lib/arm64-v8a
 
-# Copiar binarios de PanVK generados renombrándolos al estándar cargable
+# Copiar binarios resultantes
 COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/armeabi-v7a/libvulkan_wrapper.so
 COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/arm64-v8a/libvulkan_wrapper.so
 
-# Crear el manifiesto wrappers.json configurado para forzar compatibilidad Bifrost
+# Crear el manifiesto wrappers.json
 RUN echo '[{\
   "id": "panvk-bifrost-stubs",\
   "name": "PanVK Mali Bifrost + Stubs (Experimental)",\
-  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android integrados para evadir restricciones de ruta /dev/dri.",\
+  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android integrados para evadir restricciones de ruta /dev/dri y mesa-clc host bypass.",\
   "author": "Over-cmd",\
   "version": "26.2.0-bifrost",\
   "gpuTargets": ["mali"],\
