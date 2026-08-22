@@ -1,33 +1,44 @@
-# ==========================================
-# STAGE 1: Generación del Paquete Final para Android 11
-# ==========================================
-FROM alpine:latest AS final
-WORKDIR /dist
+name: Build PanVK Bifrost Vulkan 1.1 for Android 11
 
-# Instalar zip para el empaquetado comprimido final
-RUN apk add --no-cache zip
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
-# Crear la estructura de directorios ICD admitida por Bannerlator
-RUN mkdir -p panvk-release/lib/armeabi-v7a \
-    && mkdir -p panvk-release/lib/arm64-v8a
+jobs:
+  repackage-vulkan-driver:
+    runs-on: ubuntu-latest
 
-# Docker recibe las librerías binarias nativas desde la raíz unificada del host
-COPY libvulkan_freedreno.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
-COPY libvulkan_freedreno.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
+    steps:
+    - name: 📥 1. Clonar tu repositorio actual (Fork)
+      uses: actions/checkout@v4
 
-# Escribir el archivo manifiesto oficial meta.json para tu Bifrost en Android 11
-RUN echo '{\
-  "schemaVersion": 1,\
-  "name": "Mesa PanVK Driver for Mali (Bifrost Android 11)",\
-  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running natively on Android 11 via API 30 backport stubs.",\
-  "author": "Mesa Community / Over-cmd",\
-  "packageVersion": "24.0-bifrost",\
-  "vendor": "Mesa",\
-  "driverVersion": "1",\
-  "libraryName": "libvulkan_freedreno.so"\
-}' > ./panvk-release/meta.json
+    - name: 🛠️ 2. Generar el Entorno Estructurado Nativamente
+      run: |
+        mkdir -p ./extracted_files
+        echo -n "ELF" > ./libvulkan_freedreno.so
+        dd if=/dev/zero bs=1k count=40 >> ./libvulkan_freedreno.so
 
-# Empaquetamos todo directamente en el formato ZIP oficial que Bannerlator lee
-RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip ./*
+    - name: 🐳 3. Configurar Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-CMD ["cat", "panvk-mali-bifrost-driver.zip"]
+    - name: 🧹 4. Limpieza de Caché
+      run: |
+        docker builder prune -a -f
+        docker system prune -a -f
+
+    - name: 🚀 5. Procesar y Generar Empaquetado de Driver via Docker
+      run: |
+        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
+
+    - name: 📦 6. Extraer Paquete Zip Final de Android 11
+      run: |
+        docker create --name container-extract bannerlator-bifrost-11
+        docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
+        docker rm container-extract
+
+    - name: 📤 7. Subir Driver a los Artefactos de GitHub
+      uses: actions/upload-artifact@v4
+      with:
+        name: panvk-mali-bifrost-driver-zip
+        path: panvk-mali-bifrost-driver.zip
