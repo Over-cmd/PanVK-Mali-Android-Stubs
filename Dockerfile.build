@@ -1,12 +1,12 @@
 # ==========================================
-# STAGE 1: Entorno de compilación base
+# STAGE 1: Entorno de configuración unificado con NDK
 # ==========================================
 FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar absolutamente todas las dependencias requeridas para la compilación cruzada de Mesa
+# Instalar las herramientas base y librerías de empaquetado (mako es obligatoria)
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -19,25 +19,11 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     git \
     glslang-tools \
-    libvulkan-dev \
-    libelf-dev \
-    libx11-dev \
-    libxext-dev \
-    libxdamage-dev \
-    libxfixes-dev \
-    libxcb-glx0-dev \
-    libxcb-shm0-dev \
-    libx11-xcb-dev \
-    libxcb-dri2-0-dev \
-    libxcb-dri3-dev \
-    libxcb-present-dev \
-    libxshmfence-dev \
-    libxrandr-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install meson mako
 
-# Recibir el NDK pre-descargado desde el host de GitHub Actions
+# Recibir el NDK pre-descargado de forma nativa desde GitHub Actions
 ARG NDK_PATH_HOST
 COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
@@ -45,27 +31,9 @@ WORKDIR /workspace
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación e Instalación Oficial del Host Compiler (Mesa-CLC)
+# STAGE 2: Compilación Cruzada de 32 Bits (armeabi-v7a)
 # ==========================================
-# Siguiendo la documentación de Mesa, compilamos e instalamos de forma aislada las herramientas del host
-RUN meson setup build-compiler \
-    -Dprefix=/tmp/mesa-compiler \
-    -Dbuildtype=release \
-    -Dstrip=true \
-    -Dplatforms= \
-    -Dgallium-drivers= \
-    -Dvulkan-drivers= \
-    -Dmesa-clc=enabled \
-    -Dinstall-mesa-clc=true \
-    && meson install -C build-compiler
-
-# Inyectamos el compilador nativo generado directamente en el PATH del sistema para que los próximos subprocesos lo encuentren de forma automática
-ENV PATH="/tmp/mesa-compiler/bin:${PATH}"
-
-# ==========================================
-# STAGE 3: Compilación Cruzada de 32 Bits (armeabi-v7a)
-# ==========================================
-FROM builder AS build-32
+# Pasamos la flag del compilador interno de forma automática
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
@@ -73,13 +41,12 @@ RUN meson setup build-32 \
     -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=system \
-    && ninja -C build-32/
+    -Dmesa-clc=auto \
+    && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Compilación Cruzada de 64 Bits (arm64-v8a)
+# STAGE 3: Compilación Cruzada de 64 Bits (arm64-v8a)
 # ==========================================
-FROM builder AS build-64
 RUN meson setup build-64 \
     --cross-file android-64.toml \
     --buildtype=release \
@@ -87,28 +54,28 @@ RUN meson setup build-64 \
     -Dandroid-stub=true \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=system \
-    && ninja -C build-64/
+    -Dmesa-clc=auto \
+    && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 5: Empaquetado ICD Driver para Bannerlator
+# STAGE 4: Empaquetado Estructurado ICD para Bannerlator
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Estructurar la jerarquía de directorios ICD admitida por Bannerlator
+# Crear la jerarquía oficial que lee el Wrapper Version Manager
 RUN mkdir -p panvk-bifrost-package/lib/armeabi-v7a \
     && mkdir -p panvk-bifrost-package/lib/arm64-v8a
 
-# Copiar binarios resultantes de PanVK
-COPY --from=build-32 /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/armeabi-v7a/libvulkan_wrapper.so
-COPY --from=build-64 /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/arm64-v8a/libvulkan_wrapper.so
+# Copiar las librerías binarias nativas mapeadas al estándar cargable de la app
+COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/armeabi-v7a/libvulkan_wrapper.so
+COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-bifrost-package/lib/arm64-v8a/libvulkan_wrapper.so
 
-# Crear el manifiesto wrappers.json
+# Escribir el archivo manifiesto wrappers.json
 RUN echo '[{\
   "id": "panvk-bifrost-stubs",\
   "name": "PanVK Mali Bifrost + Stubs (Experimental)",\
-  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android integrados para evadir restricciones de ruta /dev/dri y patch de compilacion nativa oficial Mesa-CLC.",\
+  "description": "Driver Vulkan PanVK forzado para arquitectura Bifrost (G31/G52/G72/G76) con stubs Android integrados para evadir restricciones de ruta /dev/dri y compilacion directa unificada.",\
   "author": "Over-cmd",\
   "version": "26.2.0-bifrost",\
   "gpuTargets": ["mali"],\
