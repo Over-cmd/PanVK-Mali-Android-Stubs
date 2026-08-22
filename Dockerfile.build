@@ -6,7 +6,7 @@ FROM ubuntu:20.04 AS builder
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_NDK_HOME=/opt/android-ndk
 
-# Instalar herramientas esenciales y dependencias de LLVM exigidas por Mesa 24.0
+# Instalar las herramientas esenciales y dependencias de LLVM exigidas nativamente por Mesa
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
@@ -35,49 +35,32 @@ WORKDIR /workspace
 COPY . .
 
 # ==========================================
-# STAGE 2: Compilación Oficial del Compilador Host con Plataforma Headless
+# STAGE 2: Compilación Cruzada de 32 Bits (API 30 - Android 11)
 # ==========================================
-# CORRECCIÓN DEFINITIVA: Removida la bandera -Dandroid-stub=true para evitar que Meson aborte por argumentos inexistentes
-RUN meson setup build-compiler \
-    -Dprefix=/tmp/mesa-compiler \
-    -Dbuildtype=release \
-    -Dplatforms=android \
-    -Dgallium-drivers=swrast \
-    -Dvulkan-drivers=freedreno \
-    -Dmesa-clc=enabled \
-    && ninja -C build-compiler src/compiler/vulkan/tools/mesa-clc \
-    && mkdir -p /tmp/mesa-compiler/bin \
-    && cp build-compiler/src/compiler/vulkan/tools/mesa-clc /tmp/mesa-compiler/bin/
-
-# Colocar el compilador nativo generado en el PATH del sistema
-ENV PATH="/tmp/mesa-compiler/bin:${PATH}"
-
-# ==========================================
-# STAGE 3: Compilación Cruzada de 32 Bits (API 30 - Android 11)
-# ==========================================
+# Usamos --native-file para que Meson autocompile mesa-clc nativamente sin scripts manuales
 RUN meson setup build-32 \
     --cross-file android-32.toml \
+    --native-file native-x86_64.toml \
     --buildtype=release \
     -Dplatforms=android \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=system \
     && ninja -C build-32/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Compilación Cruzada de 64 Bits (API 30 - Android 11)
+# STAGE 3: Compilación Cruzada de 64 Bits (API 30 - Android 11)
 # ==========================================
 RUN meson setup build-64 \
     --cross-file android-64.toml \
+    --native-file native-x86_64.toml \
     --buildtype=release \
     -Dplatforms=android \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
-    -Dmesa-clc=system \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 5: Empaquetado oficial en formato ZIP idéntico a la Alpha
+# STAGE 4: Empaquetado oficial en formato ZIP para Bannerlator
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
@@ -93,7 +76,7 @@ COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.s
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11 con compilador real LLVM host-clc.",\
+  "description": "Custom PanVK Vulkan 1.1 driver forced for MediaTek Bifrost running on Android 11 con auto-compilacion nativa de shaders.",\
   "author": "Mesa Community",\
   "packageVersion": "24.0",\
   "vendor": "Mesa",\
