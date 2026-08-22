@@ -11,11 +11,11 @@ RUN apk add --no-cache zip
 RUN mkdir -p panvk-release/lib/armeabi-v7a \
     && mkdir -p panvk-release/lib/arm64-v8a
 
-# Copiar las librerías binarias reales que subiste de forma física a tu repositorio
+# Docker recibe las librerías binarias nativas desde la raíz unificada del host
 COPY libvulkan_freedreno.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY libvulkan_freedreno.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
 
-# Forzamos los metadatos indicándole al emulador que es un driver Vulkan 1.1 listo para Bifrost sobre Android 11
+# Escribir el archivo manifiesto oficial meta.json para tu Bifrost en Android 11
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali (Bifrost Android 11)",\
