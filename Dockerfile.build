@@ -1,5 +1,5 @@
 # ==========================================
-# STAGE 1: Entorno de configuración base unificado
+# STAGE 1: Entorno de configuración base unificado con NDK r25c
 # ==========================================
 FROM ubuntu:20.04 AS builder
 
@@ -29,8 +29,8 @@ COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
 WORKDIR /workspace
 
-# SOLUCIÓN DEL EXIT CODE 128: Clonamos desde el espejo oficial de GitHub
-RUN git clone --depth 1 --branch mesa-24.0.0 https://github.com .
+# CLONACIÓN CORRECTA: Usamos el espejo oficial exacto en la rama 24.0
+RUN git clone --depth 1 --branch 24.0 https://github.com .
 
 # Copiar tus stubs locales de compatibilidad Android hacia el árbol de fuentes
 COPY . .
@@ -58,7 +58,7 @@ RUN meson setup build-64 \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Empaquetado en formato ZIP con el Manifiesto de la Alpha
+# STAGE 4: Empaquetado oficial en formato ZIP con el Manifiesto de la Alpha
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
@@ -85,6 +85,6 @@ RUN echo '{\
 # Empaquetar el driver en un archivo comprimido .zip listo para el celular
 RUN apk add --no-cache zip \
     && cd panvk-bifrost-release \
-    && zip -r ../panvk-bifrost-android11.zip ./*
+    && zip -r ../panvk-mali-bifrost-driver.zip ./*
 
-CMD ["cat", "panvk-bifrost-android11.zip"]
+CMD ["cat", "panvk-mali-bifrost-driver.zip"]
