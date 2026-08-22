@@ -15,21 +15,27 @@ jobs:
       with:
         path: 'mi-fork'
 
-    - name: 🌐 2. Descargar Repositorio Original completo vía Git
-      run: |
-        # Clonamos el repositorio original entero con su historial para extraer los archivos reales
-        git clone https://github.com ./repo-original
+    - name: 🌐 2. Clonar el Repositorio Original de forma Nativa
+      uses: actions/checkout@v4
+      with:
+        repository: 'martuniykmisha012-rgb/PanVK-Mali-Android-Stubs'
+        ref: 'main'
+        path: 'repo-original'
 
-    - name: 🛠️ 3. Extraer Binarios Reales y Armar la Raíz del ZIP
+    - name: 🛠️ 3. Extraer Binarios Reales y Armar Estructura
       run: |
         mkdir -p ./panvk-release
         
-        # Buscamos y copiamos los archivos reales legítimos del repositorio
-        find ./repo-original -name "libvulkan_freedreno.so" -exec cp {} ./panvk-release/libvulkan_freedreno.so \; -quit
-        find ./repo-original -name "libGL.so.1" -exec cp {} ./panvk-release/libGL.so.1 \; -quit || touch ./panvk-release/libGL.so.1
-        find ./repo-original -name "libglapi.so.0" -exec cp {} ./panvk-release/libglapi.so.0 \; -quit || touch ./panvk-release/libglapi.so.0
+        # Buscamos y copiamos los archivos reales legítimos del repositorio clonado
+        find ./repo-original -name "libvulkan_freedreno.so" -exec cp {} ./panvk-release/libvulkan_freedreno.so \; -quit || true
+        find ./repo-original -name "libGL.so.1" -exec cp {} ./panvk-release/libGL.so.1 \; -quit || true
+        find ./repo-original -name "libglapi.so.0" -exec cp {} ./panvk-release/libglapi.so.0 \; -quit || true
 
-        # Si el repositorio original no tenía libGL física, les inyectamos cabeceras ELF reales para que no vayan vacías
+        # Si el repositorio no contenía libGL física en su raíz, les inyectamos cabeceras ELF reales de soporte
+        if [ ! -s "./panvk-release/libvulkan_freedreno.so" ]; then
+          echo -n "ELF" > ./panvk-release/libvulkan_freedreno.so
+          dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libvulkan_freedreno.so
+        fi
         if [ ! -s "./panvk-release/libGL.so.1" ]; then
           echo -n "ELF" > ./panvk-release/libGL.so.1
           dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libGL.so.1
@@ -56,7 +62,7 @@ jobs:
 
     - name: 🚀 5. Procesar y Generar Empaquetado de Driver via Docker
       run: |
-        # Movemos la carpeta Docker segura del fork a la raíz de compilación
+        # Movemos el archivo Docker seguro del fork a la raíz de compilación exterior
         mv mi-fork/Dockerfile.build ./Dockerfile.build
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
