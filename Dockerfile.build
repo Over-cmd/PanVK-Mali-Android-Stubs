@@ -1,5 +1,5 @@
 # ==========================================
-# STAGE 1: Entorno de configuración con NDK y Rust
+# STAGE 1: Entorno de configuración unificado con NDK y Rust
 # ==========================================
 FROM ubuntu:22.04 AS builder
 
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip3 install meson mako
 RUN cargo install --root /usr/local bindgen-cli || true
 
-# Recibir el NDK pre-descargado desde el host de GitHub Actions
+# Recibir el NDK pre-descargado de forma nativa desde GitHub Actions
 ARG NDK_PATH_HOST
 COPY ${NDK_PATH_HOST} ${ANDROID_NDK_HOME}
 
@@ -38,11 +38,13 @@ COPY . .
 # ==========================================
 # STAGE 2: Compilación Cruzada de 32 Bits (armeabi-v7a)
 # ==========================================
+# Añadimos -Dplatform-sdk-version=24 para que coincida con el cross-file del NDK
 RUN meson setup build-32 \
     --cross-file android-32.toml \
     --buildtype=release \
     -Dplatforms=android \
     -Dandroid-stub=true \
+    -Dplatform-sdk-version=24 \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
     -Dmesa-clc=auto \
@@ -56,38 +58,39 @@ RUN meson setup build-64 \
     --buildtype=release \
     -Dplatforms=android \
     -Dandroid-stub=true \
+    -Dplatform-sdk-version=24 \
     -Dgallium-drivers=swrast \
     -Dvulkan-drivers=panfrost \
     -Dmesa-clc=auto \
     && ninja -C build-64/ src/panfrost/vulkan/libvulkan_panfrost.so
 
 # ==========================================
-# STAGE 4: Empaquetado oficial idéntico a la Release v1.0-alpha
+# STAGE 4: Empaquetado oficial con estructura idéntica a la Release v1.0-alpha
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Crear estructura limpia para los artefactos de salida
+# Crear la estructura de directorios
 RUN mkdir -p panvk-release/lib/armeabi-v7a \
     && mkdir -p panvk-release/lib/arm64-v8a
 
-# Copiar y renombrar los archivos binarios resultantes tal como lo exige el manifiesto de la release
+# Copiar y renombrar las librerías al estándar exacto del meta.json original
 COPY --from=builder /workspace/build-32/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so
 COPY --from=builder /workspace/build-64/src/panfrost/vulkan/libvulkan_panfrost.so ./panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
 
-# Si tu compilación de Gallium también generó libGL y libglapi, los añadimos. Por ahora, aseguramos el Vulkan Core:
+# Escribir el archivo manifiesto oficial de metadatos descubierto en la release
 RUN echo '{\
   "schemaVersion": 1,\
-  "name": "Mesa PanVK Driver for Mali (Bifrost Forced)",\
-  "description": "Custom PanVK Vulkan driver for MediaTek Bifrost architecture using Android UMD stubs.",\
-  "author": "Mesa Community / Over-cmd",\
+  "name": "Mesa PanVK Driver for Mali",\
+  "description": "Custom PanVK Vulkan driver for MediaTek",\
+  "author": "Mesa Community",\
   "packageVersion": "26.2",\
   "vendor": "Mesa",\
   "driverVersion": "1",\
   "libraryName": "libvulkan_freedreno.so"\
 }' > ./panvk-release/meta.json
 
-# Empaquetar todo en el archivo ZIP final estructurado
+# Empaquetar todo directamente en formato ZIP
 RUN apk add --no-cache zip \
     && cd panvk-release \
     && zip -r ../panvk-mali-bifrost-driver.zip ./*
