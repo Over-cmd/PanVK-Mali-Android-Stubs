@@ -10,13 +10,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: 🛠️ Clonar Espejo de Mesa 24.0 Nativo en GitHub Actions
       uses: actions/checkout@v4
+      with:
+        repository: 'mirror/mesa'
+        ref: '24.0'
+        path: '.' # Descarga el código directo en la raíz de trabajo
+
+    - name: 📥 Inyectar Stubs Locales del Fork sobre el código de Mesa
+      run: |
+        # Este paso recrea tus stubs de Android sobre el árbol limpio de Mesa 24.0
+        # de forma que Meson los procese localmente sin problemas
+        echo "[constants]" > android-32.toml
+        echo "ndk_path = '/opt/android-ndk'" >> android-32.toml
+        echo "toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'" >> android-32.toml
+        echo "api = '30'" >> android-32.toml
+        echo "[binaries]" >> android-32.toml
+        echo "c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'" >> android-32.toml
+        echo "cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'" >> android-32.toml
+        echo "ar      = toolchain + '/llvm-ar'" >> android-32.toml
+        echo "strip   = toolchain + '/llvm-strip'" >> android-32.toml
+        echo "[host_machine]" >> android-32.toml
+        echo "system = 'android'" >> android-32.toml
+        echo "cpu_family = 'arm'" >> android-32.toml
+        echo "cpu = 'armv7a'" >> android-32.toml
+        echo "endian = 'little'" >> android-32.toml
+
+        echo "[constants]" > android-64.toml
+        echo "ndk_path = '/opt/android-ndk'" >> android-64.toml
+        echo "toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'" >> android-64.toml
+        echo "api = '30'" >> android-64.toml
+        echo "[binaries]" >> android-64.toml
+        echo "c       = toolchain + '/aarch64-linux-android' + api + '-clang'" >> android-64.toml
+        echo "cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'" >> android-64.toml
+        echo "ar      = toolchain + '/llvm-ar'" >> android-64.toml
+        echo "strip   = toolchain + '/llvm-strip'" >> android-64.toml
+        echo "[host_machine]" >> android-64.toml
+        echo "system = 'android'" >> android-64.toml
+        echo "cpu_family = 'aarch64'" >> android-64.toml
+        echo "cpu = 'arm64'" >> android-64.toml
+        echo "endian = 'little'" >> android-64.toml
 
     - name: Set up Android NDK Nativo Seguro (r25c)
       uses: android-actions/setup-android@v3
       with:
-        ndk-version: '25.2.9519653' # Nomenclatura oficial de Google para el NDK r25c
+        ndk-version: '25.2.9519653'
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -35,11 +73,11 @@ jobs:
     - name: Extract Zip Package
       run: |
         docker create --name container-extract bannerlator-bifrost-11
-        docker cp container-extract:/dist/panvk-bifrost-android11.zip ./panvk-bifrost-android11.zip
+        docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
         docker rm container-extract
 
     - name: Upload Zip Package to Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: panvk-bifrost-vulkan11-driver
-        path: panvk-bifrost-android11.zip
+        name: panvk-mali-bifrost-driver-zip
+        path: panvk-mali-bifrost-driver.zip
