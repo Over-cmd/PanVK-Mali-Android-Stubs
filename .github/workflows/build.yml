@@ -6,84 +6,32 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-vulkan-driver:
+  repackage-vulkan-driver:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📥 1. Clonar tus scripts locales (Fork)
+    - name: 📥 1. Clonar repositorio actual (Fork)
       uses: actions/checkout@v4
-      with:
-        path: 'fork-files'
 
-    - name: 🛠️ 2. Clonar Espejo Oficial de Mesa 24.0
-      uses: actions/checkout@v4
-      with:
-        repository: 'mirror/mesa'
-        ref: '24.0'
-        path: 'mesa-src'
-
-    - name: 🔄 3. Fusionar Entornos y Generar Cross-Files
-      run: |
-        mv fork-files/Dockerfile.build ./Dockerfile.build
-        cp -r fork-files/* ./mesa-src/ || true
-
-        # Generar los archivos TOML de configuración cruzada para Android 11 (API 30)
-        echo "[constants]" > ./mesa-src/android-32.toml
-        echo "ndk_path = '/opt/android-ndk'" >> ./mesa-src/android-32.toml
-        echo "toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'" >> ./mesa-src/android-32.toml
-        echo "api = '30'" >> ./mesa-src/android-32.toml
-        echo "[binaries]" >> ./mesa-src/android-32.toml
-        echo "c       = toolchain + '/armv7a-linux-androideabi' + api + '-clang'" >> ./mesa-src/android-32.toml
-        echo "cpp     = toolchain + '/armv7a-linux-androideabi' + api + '-clang++'" >> ./mesa-src/android-32.toml
-        echo "ar      = toolchain + '/llvm-ar'" >> ./mesa-src/android-32.toml
-        echo "strip   = toolchain + '/llvm-strip'" >> ./mesa-src/android-32.toml
-        echo "[host_machine]" >> ./mesa-src/android-32.toml
-        echo "system = 'android'" >> ./mesa-src/android-32.toml
-        echo "cpu_family = 'arm'" >> ./mesa-src/android-32.toml
-        echo "cpu = 'armv7a'" >> ./mesa-src/android-32.toml
-        echo "endian = 'little'" >> ./mesa-src/android-32.toml
-
-        echo "[constants]" > ./mesa-src/android-64.toml
-        echo "ndk_path = '/opt/android-ndk'" >> ./mesa-src/android-64.toml
-        echo "toolchain = ndk_path + '/toolchains/llvm/prebuilt/linux-x86_64/bin'" >> ./mesa-src/android-64.toml
-        echo "api = '30'" >> ./mesa-src/android-64.toml
-        echo "[binaries]" >> ./mesa-src/android-64.toml
-        echo "c       = toolchain + '/aarch64-linux-android' + api + '-clang'" >> ./mesa-src/android-64.toml
-        echo "cpp     = toolchain + '/aarch64-linux-android' + api + '-clang++'" >> ./mesa-src/android-64.toml
-        echo "ar      = toolchain + '/llvm-ar'" >> ./mesa-src/android-64.toml
-        echo "strip   = toolchain + '/llvm-strip'" >> ./mesa-src/android-64.toml
-        echo "[host_machine]" >> ./mesa-src/android-64.toml
-        echo "system = 'android'" >> ./mesa-src/android-64.toml
-        echo "cpu_family = 'aarch64'" >> ./mesa-src/android-64.toml
-        echo "cpu = 'arm64'" >> ./mesa-src/android-64.toml
-        echo "endian = 'little'" >> ./mesa-src/android-64.toml
-
-    - name: 🤖 4. Configurar Android NDK Nativo (r25c)
-      uses: android-actions/setup-android@v3
-      with:
-        ndk-version: '25.2.9519653'
-
-    - name: 🐳 5. Configurar Docker Buildx
+    - name: 🐳 2. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🧹 6. Limpieza Agresiva de Caché
+    - name: 🧹 3. Limpieza de Caché
       run: |
         docker builder prune -a -f
         docker system prune -a -f
 
-    - name: 🚀 7. Compilar Driver via Docker pasando el contexto unificado
+    - name: 🚀 4. Procesar y Generar Empaquetado de Driver via Docker
       run: |
-        docker build --no-cache \
-          --build-arg NDK_PATH_HOST=${{ env.ANDROID_NDK_HOME }} \
-          -f Dockerfile.build --target final -t bannerlator-bifrost-11 ./mesa-src
+        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 8. Extraer Paquete Zip Final
+    - name: 📦 5. Extraer Paquete Zip Final de Android 11
       run: |
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
         docker rm container-extract
 
-    - name: 📤 9. Subir Driver a los Artefactos de GitHub
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
