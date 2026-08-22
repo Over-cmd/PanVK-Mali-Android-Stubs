@@ -1,37 +1,37 @@
 # ==========================================
-# STAGE 1: Descarga y Extracción de Binarios Oficiales Estables PanVK
+# STAGE 1: Procesamiento de los Binarios Recibidos
 # ==========================================
-FROM ubuntu:20.04 AS fetcher
+FROM ubuntu:20.04 AS extractor
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y wget unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
 
-# Descargamos el paquete base oficial de la v1.0-alpha del repositorio de stubs
-RUN wget -q "https://github.com" -O driver.zip \
-    && mkdir -p /dist/panvk-release/lib/armeabi-v7a \
+# Docker recibe el archivo ZIP de forma local y segura desde el host exterior
+COPY PanVK-v1.0-alpha.zip ./driver.zip
+
+RUN mkdir -p /dist/panvk-release/lib/armeabi-v7a \
     && mkdir -p /dist/panvk-release/lib/arm64-v8a \
     && unzip -q driver.zip -d /tmp/extracted
 
-# Mapeamos los archivos binarios compartidos nativos al estándar de arquitectura
+# Mapeamos los archivos binarios al estándar de arquitectura de Bannerlator
 RUN cp /tmp/extracted/libvulkan_freedreno.so /dist/panvk-release/lib/armeabi-v7a/libvulkan_freedreno.so \
     && cp /tmp/extracted/libvulkan_freedreno.so /dist/panvk-release/lib/arm64-v8a/libvulkan_freedreno.so
 
 # ==========================================
-# STAGE 2: Generación de Entorno y Manifiesto Forzado para Android 11
+# STAGE 2: Generación del Paquete Final para Android 11
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Instalar zip para el empaquetado final
 RUN apk add --no-cache zip
 
 # Copiar las librerías binarias estables extraídas en el Stage 1
-COPY --from=fetcher /dist/panvk-release/ ./panvk-release/
+COPY --from=extractor /dist/panvk-release/ ./panvk-release/
 
-# Forzamos los metadatos dinámicos indicándole al emulador que es un driver Vulkan 1.1 puro listo para Bifrost sobre Android 11
+# Escribir el archivo manifiesto oficial meta.json para tu Bifrost en Android 11
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali (Bifrost Android 11)",\
@@ -43,7 +43,7 @@ RUN echo '{\
   "libraryName": "libvulkan_freedreno.so"\
 }' > ./panvk-release/meta.json
 
-# Empaquetamos todo directamente en el formato ZIP oficial que Bannerlator lee
+# Empaquetamos todo directamente en el formato ZIP oficial
 RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip ./*
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
