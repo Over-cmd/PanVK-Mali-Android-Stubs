@@ -7,27 +7,10 @@ WORKDIR /dist
 # Instalar zip para comprimir el paquete final
 RUN apk add --no-cache zip
 
-# Crear la carpeta de salida donde se agruparán los 4 archivos requeridos
-RUN mkdir -p panvk-release
+# Copiar la carpeta completa con los 4 archivos legítimos generados por el host
+COPY panvk-release ./panvk-release
 
-# Copiar los tres archivos binarios compartidos generados por el host
-COPY libGL.so.1 ./panvk-release/libGL.so.1
-COPY libglapi.so.0 ./panvk-release/libglapi.so.0
-COPY libvulkan_freedreno.so ./panvk-release/libvulkan_freedreno.so
-
-# Escribir el manifiesto meta.json con el formato exacto requerido
-RUN echo '{\
-  "schemaVersion": 1,\
-  "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan driver for MediaTek",\
-  "author": "Mesa Community",\
-  "packageVersion": "26.2",\
-  "vendor": "Mesa",\
-  "driverVersion": "1",\
-  "libraryName": "libvulkan_freedreno.so"\
-}' > ./panvk-release/meta.json
-
-# Comprimir los 4 archivos juntos en la raíz del ZIP final
+# Comprimir los 4 archivos juntos en la raíz del ZIP final tal como lo necesitas
 RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
