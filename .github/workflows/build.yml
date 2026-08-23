@@ -27,8 +27,6 @@ jobs:
 
     - name: 🛠️ 4. PARCHE DE MEMORIA: Modificar el código fuente de Panfrost para limpiar el desbordamiento
       run: |
-        # Este comando inyecta la instrucción de vaciado de buffers directamente en el core de asignación de Mesa
-        # para forzar la liberación de memoria RAM cada vez que el cursor o los Shaders saturan el chip Bifrost
         sed -i 's/pan_pool_init/pan_pool_init_forced/g' ./panvk-release/libvulkan_freedreno.so 2>/dev/null || true
         
     - name: 📝 5. Crear archivo manifiesto meta.json oficial para Adrenotools
