@@ -7,7 +7,7 @@ WORKDIR /dist
 # Instalar zip para comprimir el paquete final
 RUN apk add --no-cache zip
 
-# Copiar la carpeta completa generada por el host con el parche de memoria inyectado
+# Copiar la carpeta completa generada por el host
 COPY panvk-release ./panvk-release
 
 # COMPRESIÓN EN RAÍZ: Metemos los 4 archivos sueltos directamente al ZIP final sin subcarpetas
