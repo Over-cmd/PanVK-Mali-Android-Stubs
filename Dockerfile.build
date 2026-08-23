@@ -1,5 +1,5 @@
 # ==========================================
-# STAGE 1: Generación del Paquete Forzado para Adrenotools
+# STAGE 1: Generación del Paquete Oficial de Adrenotools en la Raíz
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
@@ -7,35 +7,31 @@ WORKDIR /dist
 # Instalar zip para el empaquetado final
 RUN apk add --no-cache zip
 
-# Crear la estructura de carpetas obligatoria que exige el validador de Adrenotools
-RUN mkdir -p package/lib/armeabi-v7a \
-    && mkdir -p package/lib/arm64-v8a
+# Crear directorio de ordenamiento plano temporal
+RUN mkdir -p root-package
 
-# Copiamos las librerías reales pesadas dentro de las carpetas de arquitectura
-COPY panvk-release/libvulkan_freedreno.so ./package/lib/armeabi-v7a/libvulkan_freedreno.so
-COPY panvk-release/libvulkan_freedreno.so ./package/lib/arm64-v8a/libvulkan_freedreno.so
-COPY panvk-release/libGL.so.1 ./package/lib/armeabi-v7a/libGL.so.1
-COPY panvk-release/libGL.so.1 ./package/lib/arm64-v8a/libGL.so.1
-COPY panvk-release/libglapi.so.0 ./package/lib/armeabi-v7a/libglapi.so.0
-COPY panvk-release/libglapi.so.0 ./package/lib/arm64-v8a/libglapi.so.0
+# Copiamos los tres archivos binarios legítimos sueltos en la raíz del paquete
+COPY panvk-release/libvulkan_freedreno.so ./root-package/libvulkan_freedreno.so
+COPY panvk-release/libGL.so.1 ./root-package/libGL.so.1
+COPY panvk-release/libglapi.so.0 ./root-package/libglapi.so.0
 
-# BYPASS: Escribimos el manifiesto simulando ser un driver Turnip oficial para Snapdragon.
-# Esto engaña al validador de Adrenotools, obligándolo a aceptar el paquete en tu tablet.
+# Escribimos el manifiesto meta.json con la firma oficial que Adrenotools exige
 RUN echo '{\
   "schemaVersion": 1,\
-  "name": "Turnip Driver for Adreno (Mesa PanVK Mali Forced)",\
-  "description": "Bypass driver forced for MediaTek Bifrost architecture running natively on Android 11 via Adrenotools loader.",\
-  "author": "Mesa Community / Qualcomm Open Source",\
-  "packageVersion": "24.1.0-devel",\
-  "vendor": "Qualcomm",\
-  "driverVersion": "512.0",\
+  "name": "Mesa PanVK Driver for Mali",\
+  "description": "Custom PanVK Vulkan driver for MediaTek",\
+  "author": "Mesa Community",\
+  "packageVersion": "26.2",\
+  "vendor": "Mesa",\
+  "driverVersion": "1",\
   "libraryName": "libvulkan_freedreno.so"\
-}' > ./package/meta.json
+}' > ./root-package/meta.json
 
-# Duplicamos la firma como manifest.json para cubrir todas las versiones de la app
-RUN cp ./package/meta.json ./package/manifest.json
+# Duplicamos la firma como manifest.json por si tu versión de Adrenotools busca ese nombre alternativo
+RUN cp ./root-package/meta.json ./root-package/manifest.json
 
-# Entramos a la carpeta y comprimimos los archivos sueltos directamente en la raíz del ZIP
-RUN cd package && zip -r ../panvk-mali-bifrost-driver.zip ./*
+# COMPRESIÓN EN RAÍZ: Entramos a la carpeta y comprimimos exclusivamente los archivos sueltos
+# Esto garantiza que al abrir el ZIP aparezcan de inmediato libGL.so.1, libglapi.so.0, libvulkan_freedreno.so y meta.json
+RUN cd root-package && zip -r ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json ./manifest.json
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
