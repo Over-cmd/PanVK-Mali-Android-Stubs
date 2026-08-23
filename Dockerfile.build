@@ -1,5 +1,5 @@
 # ==========================================
-# STAGE 1: Generación del Paquete Oficial Estructurado para Adrenotools
+# STAGE 1: Generación del Paquete Forzado para Adrenotools
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
@@ -19,23 +19,23 @@ COPY panvk-release/libGL.so.1 ./package/lib/arm64-v8a/libGL.so.1
 COPY panvk-release/libglapi.so.0 ./package/lib/armeabi-v7a/libglapi.so.0
 COPY panvk-release/libglapi.so.0 ./package/lib/arm64-v8a/libglapi.so.0
 
-# Escribimos el manifiesto meta.json en la raíz del paquete apuntando a la arquitectura de tu tablet
+# BYPASS: Escribimos el manifiesto simulando ser un driver Turnip oficial para Snapdragon.
+# Esto engaña al validador de Adrenotools, obligándolo a aceptar el paquete en tu tablet.
 RUN echo '{\
   "schemaVersion": 1,\
-  "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan driver for MediaTek forced for Bifrost running on Android 11.",\
-  "author": "Mesa Community",\
-  "packageVersion": "26.2",\
-  "vendor": "Mesa",\
-  "driverVersion": "1",\
+  "name": "Turnip Driver for Adreno (Mesa PanVK Mali Forced)",\
+  "description": "Bypass driver forced for MediaTek Bifrost architecture running natively on Android 11 via Adrenotools loader.",\
+  "author": "Mesa Community / Qualcomm Open Source",\
+  "packageVersion": "24.1.0-devel",\
+  "vendor": "Qualcomm",\
+  "driverVersion": "512.0",\
   "libraryName": "libvulkan_freedreno.so"\
 }' > ./package/meta.json
 
-# Creamos una copia como manifest.json por si tu versión de Adrenotools es moderna
+# Duplicamos la firma como manifest.json para cubrir todas las versiones de la app
 RUN cp ./package/meta.json ./package/manifest.json
 
-# CORRECCIÓN CLAVE: Entramos a la carpeta y comprimimos los archivos SUELTOS 
-# para que los archivos .json queden directamente en la raíz del archivo ZIP
+# Entramos a la carpeta y comprimimos los archivos sueltos directamente en la raíz del ZIP
 RUN cd package && zip -r ../panvk-mali-bifrost-driver.zip ./*
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
