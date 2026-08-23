@@ -29,20 +29,9 @@ jobs:
       run: |
         sed -i 's/pan_pool_init/pan_pool_init_forced/g' ./panvk-release/libvulkan_freedreno.so 2>/dev/null || true
         
-    - name: 📝 5. Crear archivo manifiesto meta.json oficial para Adrenotools
+    - name: 📝 5. Mover archivo manifiesto meta.json oficial
       run: |
-        cat << 'EOF' > ./panvk-release/meta.json
-        {
-          "schemaVersion": 1,
-          "name": "Mesa PanVK Driver for Mali",
-          "description": "Custom PanVK Vulkan driver for MediaTek forced for Bifrost running on Android 11 con parche definitivo de desbordamiento de memoria.",
-          "author": "Mesa Community",
-          "packageVersion": "26.2",
-          "vendor": "Qualcomm",
-          "driverVersion": "1",
-          "libraryName": "libvulkan_freedreno.so"
-        }
-        EOF
+        cp mi-fork/meta.json ./panvk-release/meta.json
 
     - name: 🐳 6. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
