@@ -7,10 +7,11 @@ WORKDIR /dist
 # Instalar zip para comprimir el paquete final
 RUN apk add --no-cache zip
 
-# Copiar la carpeta completa con los 4 archivos legítimos generados por el host
+# Copiar los 4 archivos legítimos generados por el host
 COPY panvk-release ./panvk-release
 
-# Comprimir los 4 archivos juntos en la raíz del ZIP final tal como lo necesitas
-RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json
+# CORRECCIÓN: Entramos a la carpeta y comprimimos los archivos SUELTOS 
+# para que meta.json quede directamente en la raíz del archivo ZIP
+RUN cd panvk-release && zip -r ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
