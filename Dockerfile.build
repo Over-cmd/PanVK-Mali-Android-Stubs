@@ -1,5 +1,5 @@
 # ==========================================
-# STAGE 1: Generación del Paquete Oficial para Adrenotools
+# STAGE 1: Generación del Paquete Oficial Estructurado para Adrenotools
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
@@ -7,30 +7,35 @@ WORKDIR /dist
 # Instalar zip para el empaquetado final
 RUN apk add --no-cache zip
 
-# Creamos la carpeta contenedora exacta que exige el validador de Adrenotools
-RUN mkdir -p driver-package
+# Crear la estructura de carpetas obligatoria que exige el validador de Adrenotools
+RUN mkdir -p package/lib/armeabi-v7a \
+    && mkdir -p package/lib/arm64-v8a
 
-# Copiamos los archivos generados dentro de la carpeta del paquete
-COPY panvk-release/libGL.so.1 ./driver-package/libGL.so.1
-COPY panvk-release/libglapi.so.0 ./driver-package/libglapi.so.0
-COPY panvk-release/libvulkan_freedreno.so ./driver-package/libvulkan_freedreno.so
+# Copiamos las librerías reales pesadas dentro de las carpetas de arquitectura
+COPY panvk-release/libvulkan_freedreno.so ./package/lib/armeabi-v7a/libvulkan_freedreno.so
+COPY panvk-release/libvulkan_freedreno.so ./package/lib/arm64-v8a/libvulkan_freedreno.so
+COPY panvk-release/libGL.so.1 ./package/lib/armeabi-v7a/libGL.so.1
+COPY panvk-release/libGL.so.1 ./package/lib/arm64-v8a/libGL.so.1
+COPY panvk-release/libglapi.so.0 ./package/lib/armeabi-v7a/libglapi.so.0
+COPY panvk-release/libglapi.so.0 ./package/lib/arm64-v8a/libglapi.so.0
 
-# Escribimos el manifiesto meta.json con las rutas relativas exactas que Adrenotools procesa
+# Escribimos el manifiesto meta.json en la raíz del paquete apuntando a la arquitectura de tu tablet
 RUN echo '{\
   "schemaVersion": 1,\
   "name": "Mesa PanVK Driver for Mali",\
-  "description": "Custom PanVK Vulkan driver for MediaTek",\
+  "description": "Custom PanVK Vulkan driver for MediaTek forced for Bifrost running on Android 11.",\
   "author": "Mesa Community",\
   "packageVersion": "26.2",\
   "vendor": "Mesa",\
   "driverVersion": "1",\
   "libraryName": "libvulkan_freedreno.so"\
-}' > ./driver-package/meta.json
+}' > ./package/meta.json
 
-# Clonamos el archivo como manifest.json porque algunas versiones de Adrenotools lo exigen así
-RUN cp ./driver-package/meta.json ./driver-package/manifest.json
+# Creamos una copia como manifest.json por si tu versión de Adrenotools es moderna
+RUN cp ./package/meta.json ./package/manifest.json
 
-# Comprimimos la carpeta contenedora completa para que Adrenotools pueda desempaquetarla
-RUN zip -r ./panvk-mali-bifrost-driver.zip ./driver-package/*
+# CORRECCIÓN CLAVE: Entramos a la carpeta y comprimimos los archivos SUELTOS 
+# para que los archivos .json queden directamente en la raíz del archivo ZIP
+RUN cd package && zip -r ../panvk-mali-bifrost-driver.zip ./*
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
