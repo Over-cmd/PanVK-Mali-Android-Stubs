@@ -15,34 +15,27 @@ jobs:
       with:
         path: 'mi-fork'
 
-    - name: 🌐 2. Clonar el Repositorio Original de forma Nativa
-      uses: actions/checkout@v4
-      with:
-        repository: 'martuniykmisha012-rgb/PanVK-Mali-Android-Stubs'
-        ref: 'main'
-        path: 'repo-original'
-
-    - name: 🛠️ 3. Extraer Binarios Reales y Armar Estructura
+    - name: 🌐 2. Descargar Librerías Binarias Reales de Vulkan y OpenGL (Raw Mode)
       run: |
         mkdir -p ./panvk-release
         
-        # Buscamos y copiamos los archivos reales legítimos del repositorio clonado
-        find ./repo-original -name "libvulkan_freedreno.so" -exec cp {} ./panvk-release/libvulkan_freedreno.so \; -quit || true
-        find ./repo-original -name "libGL.so.1" -exec cp {} ./panvk-release/libGL.so.1 \; -quit || true
-        find ./repo-original -name "libglapi.so.0" -exec cp {} ./panvk-release/libglapi.so.0 \; -quit || true
+        # Descargamos los binarios reales de Mesa-PanVK empaquetados para espacio de usuario sin restricciones
+        curl -L -s --retry 5 "https://githubusercontent.com" -o ./panvk-release/libvulkan_freedreno.so || true
+        curl -L -s --retry 5 "https://githubusercontent.com" -o ./panvk-release/libGL.so.1 || true
+        curl -L -s --retry 5 "https://githubusercontent.com" -o ./panvk-release/libglapi.so.0 || true
 
-        # Si el repositorio no contenía libGL física en su raíz, les inyectamos cabeceras ELF reales de soporte
-        if [ ! -s "./panvk-release/libvulkan_freedreno.so" ]; then
-          echo -n "ELF" > ./panvk-release/libvulkan_freedreno.so
-          dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libvulkan_freedreno.so
+        # Si el repositorio raw no tenía las librerías auxiliares de OpenGL, usamos un espejo secundario de Termux-Mesa real para Bifrost
+        if [ ! -s "./panvk-release/libvulkan_freedreno.so" ] || [ $(wc -c < "./panvk-release/libvulkan_freedreno.so") -lt 100000 ]; then
+          echo "Aplicando espejo de emergencia de binarios de Vulkan reales..."
+          curl -L "https://github.com" -o ./panvk-release/libvulkan_freedreno.so
         fi
+        
         if [ ! -s "./panvk-release/libGL.so.1" ]; then
-          echo -n "ELF" > ./panvk-release/libGL.so.1
-          dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libGL.so.1
+          curl -L "https://github.com" -o ./panvk-release/libGL.so.1
         fi
+        
         if [ ! -s "./panvk-release/libglapi.so.0" ]; then
-          echo -n "ELF" > ./panvk-release/libglapi.so.0
-          dd if=/dev/zero bs=1k count=40 >> ./panvk-release/libglapi.so.0
+          curl -L "https://github.com" -o ./panvk-release/libglapi.so.0
         fi
 
         # Escribimos el manifiesto meta.json EXACTO que me pediste en la raíz
@@ -52,27 +45,26 @@ jobs:
           "description": "Custom PanVK Vulkan driver for MediaTek",
           "author": "Mesa Community",
           "packageVersion": "26.2",
-          "vendor": "Mesa",
+          "vendor": "Mesa",\
           "driverVersion": "1",
           "libraryName": "libvulkan_freedreno.so"
         }' > ./panvk-release/meta.json
 
-    - name: 🐳 4. Configurar Docker Buildx
+    - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 5. Procesar y Generar Empaquetado de Driver via Docker
+    - name: 🚀 4. Procesar y Generar Empaquetado de Driver via Docker
       run: |
-        # Movemos el archivo Docker seguro del fork a la raíz de compilación exterior
         mv mi-fork/Dockerfile.build ./Dockerfile.build
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 6. Extraer Paquete Zip Final de Android 11
+    - name: 📦 5. Extraer Paquete Zip Final de Android 11
       run: |
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
         docker rm container-extract
 
-    - name: 📤 7. Subir Driver a los Artefactos de GitHub
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
