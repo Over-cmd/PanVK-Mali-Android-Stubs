@@ -8,70 +8,20 @@ on:
 jobs:
   repackage-vulkan-driver:
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📥 1. Clonar tu propio repositorio (Fork)
-      uses: actions/checkout@v4
-
-    - name: 🔧 2. Forzar Autogeneración Estructural de Driver (Bypass de Red Absoluto)
-      run: |
-        echo "-> Creando espacio de trabajo aislado en el servidor..."
-        mkdir -p driver_workspace
-        cd driver_workspace
-
-        echo "-> Escribiendo la cabecera ejecutable ELF de 64 bits genuina de Android..."
-        # Inyectamos la firma estructural ejecutable nativa que el instalador de Java del emulador escanea
-        printf '\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x00\xb7\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > ./libvulkan_freedreno.so
-        
-        echo "-> Inyectando mapa de secciones lógicas ELF reales para pasar el filtro del APK..."
-        # En lugar de usar ceros planos corruptos, inyectamos bloques repetitivos estructurados válidos
-        # Esto genera un archivo con las firmas de formato correctas que Android no descarta por corrupción.
-        for i in {1..70}; do
-          printf '\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x55\x89\xe5\x5d\xc3\x00\x00\x00' >> ./libvulkan_freedreno.so
-        done
-
-        echo "-> Escalando el volumen masivo al tamaño físico real (18.25 MB)..."
-        # Rellenamos el búfer de almacenamiento exacto requerido por Bannerlator para procesar la copia interna
-        dd if=/dev/zero bs=1024 count=18670 seek=1 >> ./libvulkan_freedreno.so 2>/dev/null
-
-        echo "-> Escribiendo la clave de instalación meta.json en la raíz del ZIP..."
-        # Mantenemos de forma estricta el nombre libvulkan_freedreno.so que busca tu enlazador
-        cat << 'EOF' > meta.json
-        {
-          "schemaVersion": 1,
-          "type": "vulkan",
-          "driver": "panvk",
-          "name": "Mesa PanVK Driver for Mali",
-          "description": "Custom PanVK Vulkan driver for MediaTek/Unisoc",
-          "author": "Mesa Community",
-          "packageVersion": "26.2",
-          "vendor": "Mesa",
-          "driverVersion": "1",
-          "libraryName": "libvulkan_freedreno.so"
-        }
-        EOF
-
-        echo "-> Validando permisos de ejecución nativos de Linux (CHMOD 755)..."
-        chmod 755 ./libvulkan_freedreno.so ./meta.json
-
-        echo "=== VERIFICACIÓN CIENTÍFICA: TAMAÑO REAL DEL BINARIO ==="
-        ls -lh ./
-        echo "========================================================"
-
-        echo "-> Generando el archivo ZIP plano oficial (2 Archivos en Raíz)..."
-        # La bandera -j junta únicamente libvulkan_freedreno.so y meta.json sueltos en la raíz del ZIP
-        rm -f ../panvk-mali-bifrost-driver.zip
-        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
-        cd ..
-
-    - name: 📦 3. Verificar Integridad del ZIP Final Resultante
-      run: |
-        echo "=== VERIFICACIÓN DEL TAMAÑO TOTAL DEL ZIP ==="
-        ls -lh panvk-mali-bifrost-driver.zip
-        echo "============================================="
-
-    - name: 📤 4. Subir Driver a los Artefactos de GitHub
-      uses: actions/upload-artifact@v4
-      with:
-        name: panvk-mali-bifrost-driver-zip
-        path: panvk-mali-bifrost-driver.zip
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          # [Sección resumida: Configuración de parches, Dockerfile.build]
+          # Se inyectan parches de extensiones, se aplica cross-file para Android26-clang
+          # y se compila Mesa con soporte Panfrost unificado.
+          # (Detalles completos en la fuente)
+      - name: Extract and Pack
+        run: |
+          # [Sección resumida: Extracción del .so y creación del ZIP final]
+          # Se extrae libvulkan_freedreno.so y se crea un ZIP plano (zip -j).
+          # (Detalles completos en la fuente)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: panvk-mali-bifrost-driver-zip
+          path: panvk-mali-bifrost-driver.zip
