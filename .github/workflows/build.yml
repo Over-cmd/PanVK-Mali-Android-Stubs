@@ -13,18 +13,22 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Parchear Sintaxis de Compresión e Identidad de Driver (Mali Injection)
+    - name: 🔧 2. Parchear Sintaxis, Identidad y Enlazado Dinámico (LD_PRELOAD Injection)
       run: |
         echo "-> Corrigiendo Dockerfile para forzar empaquetado plano..."
-        # 1. Aseguramos que el ZIP guarde los archivos sueltos en la raíz sin carpetas ocultas
+        # 1. Aseguramos que el ZIP guarde los archivos libres en la raíz sin carpetas relativas
         sed -i 's/zip -r/zip -j/g' Dockerfile.build || true
 
-        echo "-> Inyectando pasaporte de compatibilidad Mali en meta.json..."
-        # 2. Modificamos el archivo meta.json del repositorio en caliente para añadirle las llaves
-        # de tipo e identificación que el extractor de componentes de Bannerlator exige para activarlo.
+        echo "-> Inyectando pasaporte de compatibilidad Mali y precarga de librerías en meta.json..."
+        # 2. Modificamos el archivo meta.json. Además de inyectar las credenciales para que Bannerlator
+        # lo instale dentro del contenedor, añadimos la variable nativa de Linux LD_PRELOAD.
+        # Esto obliga al sistema a precargar libglapi.so.0, resolviendo el fallo de carga del .so de Vulkan.
         if [ -f "meta.json" ]; then
-          sed -i 's/"name":/"type": "vulkan", "driver": "panvk", "name":/g' meta.json || true
+          sed -i 's/"name":/"type": "vulkan", "driver": "panvk", "env": {"LD_PRELOAD": "libglapi.so.0"}, "name":/g' meta.json || true
         fi
+        
+        echo "=== VERIFICACIÓN DEL PARCHE EN META.JSON ==="
+        cat meta.json || true
 
     - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
