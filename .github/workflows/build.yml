@@ -15,9 +15,9 @@ jobs:
 
     - name: 🔧 2. Parchear Sintaxis, Entorno y Manifiesto ICD Nativo (Mesa Freedreno Fix)
       run: |
-        echo "-> Configurando meta.json oficial manteniendo libvulkan_freedreno.so..."
-        # Tomamos tu meta.json original y le inyectamos las llaves esenciales de tipo
-        # y la precarga de entorno LD_PRELOAD para que el linker no ignore libvulkan_freedreno.so.
+        echo "-> Sincronizando meta.json original e inyectando entorno nativo..."
+        # Configuramos el meta.json manteniendo el nombre original de tu biblioteca,
+        # pero añadiendo la estructura que Bannerlator exige para activarlo y la precarga de hilos.
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -37,8 +37,8 @@ jobs:
         EOF
 
         echo "-> Creando el archivo obligatorio de manifiesto ICD para Freedreno Vulkan..."
-        # Generamos el manifiesto ICD que exige el sistema de capas de Android para registrar
-        # oficialmente el driver en el contenedor sin fallos de lectura.
+        # Generamos el manifiesto que exige el cargador de Vulkan de Android para poder
+        # leer e inicializar el archivo libvulkan_freedreno.so de forma directa.
         cat << 'EOF' > freedreno_icd.json
         {
             "file_format_version": "1.0.0",
@@ -51,7 +51,8 @@ jobs:
 
         echo "-> Modificando Dockerfile para empaquetado plano unificado (zip -j)..."
         # Reemplazamos la línea de compresión original del Dockerfile para forzar zip -j (junk paths).
-        # Esto elimina los puntos y rutas relativas, dejando los 5 archivos planos en la raíz del ZIP.
+        # Esto elimina los puntos y rutas relativas, dejando tus 3 archivos originales con sus pesos
+        # independientes planos en la raíz del ZIP junto a los metadatos necesarios.
         sed -i 's|RUN zip -r ../panvk-mali-bifrost-driver.zip .*|RUN zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json ./freedreno_icd.json|g' Dockerfile.build || true
 
         echo "=== VERIFICACIÓN DE MANIFIESTOS NATIVOS ==="
