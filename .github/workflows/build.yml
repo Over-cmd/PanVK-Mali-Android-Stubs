@@ -13,20 +13,27 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🐳 2. Configurar Docker Buildx
+    - name: 🔧 2. Parchear Sintaxis de Compresión Plana (Anti-Corrupción de ZIP)
+      run: |
+        echo "-> Corrigiendo Dockerfile para forzar empaquetado plano..."
+        # Reemplazamos el comando zip -r por zip -j. El argumento -j (junk paths) elimina
+        # los directorios y puntos relativos, dejando los archivos sueltos en la raíz del ZIP.
+        sed -i 's/zip -r/zip -j/g' Dockerfile.build || true
+
+    - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 3. Procesar y Generar Empaquetado de Driver via Docker
+    - name: 🚀 4. Procesar y Generar Empaquetado de Driver via Docker
       run: |
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 4. Extraer Paquete Zip Final de Android 11
+    - name: 📦 5. Extraer Paquete Zip Final de Android 11
       run: |
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
         docker rm container-extract
 
-    - name: 📤 5. Subir Driver a los Artefactos de GitHub
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
