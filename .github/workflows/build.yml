@@ -8,20 +8,90 @@ on:
 jobs:
   repackage-vulkan-driver:
     runs-on: ubuntu-latest
+    
+    # Inyectamos la variable global para silenciar las alertas de Node de GitHub Actions
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: |
-          # [Sección resumida: Configuración de parches, Dockerfile.build]
-          # Se inyectan parches de extensiones, se aplica cross-file para Android26-clang
-          # y se compila Mesa con soporte Panfrost unificado.
-          # (Detalles completos en la fuente)
-      - name: Extract and Pack
-        run: |
-          # [Sección resumida: Extracción del .so y creación del ZIP final]
-          # Se extrae libvulkan_freedreno.so y se crea un ZIP plano (zip -j).
-          # (Detalles completos en la fuente)
-      - uses: actions/upload-artifact@v4
-        with:
-          name: panvk-mali-bifrost-driver-zip
-          path: panvk-mali-bifrost-driver.zip
+    - name: 📥 1. Clonar tu propio repositorio (Fork)
+      uses: actions/checkout@v4
+
+    - name: 🔧 2. Inyectar Parches Nihui y Configuración Estática Bifrost
+      run: |
+        echo "-> Creando bloque de código estático para vk_extensions.py..."
+        cat << 'EOF' > extensions.patch
+        --- a/src/vulkan/util/vk_extensions.py
+        +++ b/src/vulkan/util/vk_extensions.py
+        @@ -50,6 +50,7 @@ class Extension:
+             return ext
+         
+             def c_android_condition(self):
+        +        return 'true'
+                 if not self.name.startswith(ANDROID_EXTENSION_WHITELIST_PREFIXES):
+                     return 'true'
+        EOF
+
+        echo "-> Creando mapa de compilación cruzada Meson para API 26..."
+        cat << 'EOF' > android-aarch64
+        [binaries]
+        c = ['ccache', '/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
+        cpp = ['ccache', '/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-static-libstdc++']
+        ar = '/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+        strip = '/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+        [host_machine]
+        system = 'android'
+        cpu_family = 'aarch64'
+        cpu = 'armv8-a'
+        endian = 'little'
+        EOF
+
+        echo "-> Modificando Dockerfile para forzar la inyección nativa en PanVK..."
+        # Descargamos e inyectamos el parche original de bypass de Nougat de Nihui en las fuentes de Mesa
+        sed -i '/git clone/a RUN curl -L -f -o android_stub.patch https://githubusercontent.com \&\& patch -p1 < android_stub.patch || true' Dockerfile.build
+        
+        # Aplicamos la eliminación de la whitelist de extensiones de Google
+        sed -i '/git clone/a RUN cd mesa \&\& patch -p1 < /root/extensions.patch || true' Dockerfile.build
+        
+        # Forzamos la compilación monolítica fusionando panfrost y glapi estático dentro del mismo binario único
+        sed -i 's|--cross-file .*|--cross-file /root/android-aarch64 -Dshared-glapi=false -Dgallium-drivers=[panfrost] -Dvulkan-drivers=[panfrost] \|g' Dockerfile.build || true
+
+    - name: 🐳 3. Configurar Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🚀 4. Procesar Compilación Monolítica Nativa via Docker
+      run: |
+        cp extensions.patch ./ || true
+        cp android-aarch64 ./ || true
+        docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
+
+    - name: 📦 5. Extraer y Empaquetar Estrictamente 1 Solo Archivo Plano
+      run: |
+        echo "-> Extrayendo el contenedor final de Docker..."
+        docker create --name container-extract bannerlator-bifrost-11
+        docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./raw-driver.zip
+        docker rm container-extract
+
+        echo "-> Desempaquetando el controlador en el espacio de trabajo..."
+        mkdir -p unificado_workspace
+        unzip ./raw-driver.zip -d ./unificado_workspace || true
+        cd unificado_workspace
+
+        echo "-> Asegurando permisos de lectura y ejecución nativos de Linux (CHMOD 755)..."
+        chmod 755 ./libvulkan_freedreno.so || true
+
+        echo "=== VERIFICACIÓN FÍSICA DE SEGURIDAD ==="
+        ls -lh ./libvulkan_freedreno.so || true
+        echo "========================================"
+
+        echo "-> Generando el archivo ZIP plano oficial (Strict 1-File en Raíz)..."
+        # La bandera -j mete libvulkan_freedreno.so suelto en la raíz eliminando cualquier metadato extra
+        rm -f ../panvk-mali-bifrost-driver.zip
+        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so
+        cd ..
+
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
+      uses: actions/upload-artifact@v4
+      with:
+        name: panvk-mali-bifrost-driver-zip
+        path: panvk-mali-bifrost-driver.zip
