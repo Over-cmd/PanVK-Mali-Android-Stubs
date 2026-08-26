@@ -1,38 +1,23 @@
 # ==========================================
-# STAGE 1: Descarga y Parcheo de Archivos
-# ==========================================
-FROM alpine:latest AS builder
-WORKDIR /workspace
-
-# Instalar curl para descargar los binarios legítimos de Mesa
-RUN apk add --no-cache curl
-
-# Descargamos los binarios reales directamente dentro del entorno aislado
-RUN curl -L "https://github.com" -o ./libvulkan_freedreno.so \
-    && curl -L "https://github.com" -o ./libGL.so.1 \
-    && curl -L "https://github.com" -o ./libglapi.so.0
-
-# ==========================================
-# STAGE 2: Generación del Paquete Final Estructurado en Raíz
+# STAGE UNIFICADO: Generación de Driver Real
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Instalar zip para comprimir el paquete final
+# Instalar zip para el empaquetado plano nativo
 RUN apk add --no-cache zip
 
-# Traemos las librerías reales procesadas en la etapa anterior
-COPY --from=builder /workspace/libvulkan_freedreno.so ./libvulkan_freedreno.so
-COPY --from=builder /workspace/libGL.so.1 ./libGL.so.1
-COPY --from=builder /workspace/libglapi.so.0 ./libglapi.so.0
+# Copiamos las librerías reales ya inyectadas por el pipeline de GitHub
+COPY ./libvulkan_freedreno.so ./libvulkan_freedreno.so
+COPY ./libGL.so.1 ./libGL.so.1
+COPY ./libglapi.so.0 ./libglapi.so.0
+COPY ./meta.json ./meta.json
 
-# Recogemos el archivo meta.json físico de la raíz de tu repositorio
-COPY meta.json ./meta.json
+# Cambiar permisos nativos estrictos de Android (CHMOD 755)
+RUN chmod 755 ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
 
-# COMPRESIÓN EN RAÍZ: Empaquetamos los 4 archivos sueltos directamente al ZIP final
-RUN zip -r ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
-
-# Dejar el archivo listo en la ruta esperada por el extractor de GitHub Actions
+# COMPRESIÓN EN RAÍZ: Empaquetamos planos los 4 componentes sueltos
+RUN zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
 RUN mv ../panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
 
 CMD ["cat", "panvk-mali-bifrost-driver.zip"]
