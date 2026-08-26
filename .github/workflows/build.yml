@@ -13,14 +13,34 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🐳 2. Configurar Docker Buildx
+    - name: 🔧 2. Descargar y Aplicar Parches de Inyección Dinámica de Nihui
+      run: |
+        echo "-> Descargando parches oficiales de evasión de Linker y Extensiones..."
+        curl -L -o android_stub.patch https://githubusercontent.com
+        curl -L -o extensions.patch https://githubusercontent.com
+        curl -L -o android-aarch64 https://githubusercontent.com
+
+        echo "-> Inyectando parches dentro de la receta de Docker..."
+        # Modificamos el Dockerfile para que aplique los parches sobre las fuentes de Mesa antes de compilar
+        # y reemplace el archivo de configuración de Meson original por el de Nihui basado en API 26
+        cat << 'EOF' > patch_dockerfile.sh
+        sed -i '/RUN git clone/a RUN curl -L -o android_stub.patch https://githubusercontent.com && patch -p1 < android_stub.patch || true' Dockerfile.build
+        sed -i '/RUN git clone/a RUN curl -L -o extensions.patch https://githubusercontent.com && patch -p1 < extensions.patch || true' Dockerfile.build
+        sed -i 's|--cross-file .*|--cross-file /root/android-aarch64|g' Dockerfile.build || true
+        EOF
+        chmod +x patch_dockerfile.sh
+        ./patch_dockerfile.sh || true
+
+    - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 3. Procesar y Generar Empaquetado de Driver via Docker
+    - name: 🚀 4. Procesar y Generar Empaquetado de Driver via Docker
       run: |
+        # Pasamos el archivo de configuración cruzada seguro al contexto de Docker si el Dockerfile lo requiere
+        cp android-aarch64 ./ || true
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 4. Extraer Paquete y Forzar Formato Plano Estricto (4 Archivos en Raíz)
+    - name: 📦 5. Extraer Paquete y Forzar Formato Plano Estricto (4 Archivos en Raíz)
       run: |
         echo "-> Extrayendo el contenedor temporal de Docker..."
         docker create --name container-extract bannerlator-bifrost-11
@@ -29,14 +49,11 @@ jobs:
 
         echo "-> Creando espacio de trabajo limpio..."
         mkdir -p plano_workspace
-        
-        # Descomprimimos los archivos sueltos en nuestra carpeta de trabajo temporal
         unzip ./raw-driver.zip -d ./plano_workspace || true
         cd plano_workspace
 
-        echo "-> Sincronizando meta.json con el pasaporte de enlazado dinámico..."
-        # Escribimos el meta.json exactamente suelto en la raíz del ZIP, manteniendo
-        # el nombre original de tu biblioteca libvulkan_freedreno.so, inyectando LD_PRELOAD.
+        echo "-> Sincronizando meta.json original con el pasaporte de enlazado dinámico..."
+        # Escribimos tu meta.json inyectando la precarga del entorno para activar el stub de OpenGL
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -45,9 +62,9 @@ jobs:
           "env": {
             "LD_PRELOAD": "libglapi.so.0"
           },
-          "name": "Mesa PanVK Driver for Mali",
-          "description": "Custom PanVK Vulkan driver for MediaTek/Unisoc",
-          "author": "Mesa Community",
+          "name": "Mesa PanVK Driver for Mali (Bifrost)",
+          "description": "Custom PanVK Vulkan driver patched with Nihui Android Stubs",
+          "author": "Mesa Community / Over-cmd",
           "packageVersion": "26.2",
           "vendor": "Mesa",
           "driverVersion": "1",
@@ -56,16 +73,14 @@ jobs:
         EOF
 
         echo "-> Asegurando permisos nativos de ejecución (CHMOD 755)..."
-        # Forzamos los permisos correctos en Linux para que Android pueda leer los binarios
         chmod 755 libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json || true
 
         echo "-> Generando el archivo ZIP plano oficial (Estrictamente los 4 archivos sueltos)..."
-        # La bandera -j (junk paths) garantiza que el ZIP no tenga carpetas internas, guardando los 4 elementos sueltos
         rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
         cd ..
 
-    - name: 📤 5. Subir Driver a los Artefactos de GitHub
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
