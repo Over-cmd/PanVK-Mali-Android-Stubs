@@ -1,10 +1,10 @@
-# ==========================================
-# STAGE 1: Compilación de Mesa PanVK con Stubs
-# ==========================================
+# =========================================================================
+# STAGE 1: Entorno de Compilación Cruzada (Android NDK + Meson + funnymdzz)
+# =========================================================================
 FROM alpine:latest AS builder
 WORKDIR /root
 
-# Instalar todas las dependencias necesarias de Alpine, incluyendo unzip
+# 1. Instalar dependencias nativas de Linux esenciales para Mesa
 RUN apk add --no-cache \
     curl \
     unzip \
@@ -17,31 +17,32 @@ RUN apk add --no-cache \
     bison \
     flex \
     wayland-dev \
-    wayland-protocols
+    wayland-protocols \
+    pkgconfig
 
-# DESCARGA REAL: Apuntamos directamente al repositorio de descargas de Google
-# Esto evita que unzip intente procesar páginas web HTML corruptas (Error exit code 9)
+# 2. Instalar el Android NDK r25c oficial de forma legítima para la API 26
 RUN curl -L "https://google.com" -o ndk.zip \
     && unzip ndk.zip \
     && rm -f ndk.zip \
     && mv android-ndk-r25c android-ndk
 
-# Clonar el código fuente de Mesa 26.2
-RUN git clone --depth 1 -b main https://freedesktop.org
+# 3. Clonar el repositorio real de funnymdzz enfocado en contenedores Android (Mali kbase)
+RUN git clone --depth 1 https://github.com /root/mesa
 
-# Copiar los parches locales generados por el flujo YAML
+# 4. Traer los archivos de parches inyectados previamente por tu workflow YAML
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Aplicar los parches sobre el código fuente de Mesa e inyectar configuraciones
-RUN cd mesa \
+# 5. Aplicar inyección de stubs en caliente sobre el árbol de funnymdzz
+RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# Configurar y compilar Mesa en modo Monolítico Estático para Bifrost
-RUN cd mesa \
+# 6. Forzar la compilación estática de PanVK desmarcando componentes compartidos
+# Esto fusiona las tablas de renderizado y el compilador de Bifrost en el mismo .so
+RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
@@ -49,16 +50,30 @@ RUN cd mesa \
        -Dvulkan-drivers=[panfrost] \
        -Dplatform=android \
        -Dbuildtype=release \
+       -Dandroid-stub=true \
     && ninja -C build-android
 
-# ==========================================
-# STAGE 2: Extracción y Limpieza del Driver Único
-# ==========================================
+# =========================================================================
+# STAGE 2: Aislamiento y Configuración Final del Driver Monolítico
+# =========================================================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Copiar únicamente el archivo binario final compilado
+# Instalar zip dentro de la capa final para procesar el empaquetado plano
+RUN apk add --no-cache zip
+
+# Copiamos el binario real generado por funnymdzz. Lo renombramos estructuralmente
+# a libvulkan_freedreno.so para que coincida con los punteros estrictos de tu APK
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_freedreno.so
 
-# Aplicar permisos nativos de Linux de ejecución
-RUN chmod 755 ./libvulkan_freedreno.so
+# Copiar el archivo de metadatos meta.json desde el entorno raíz
+COPY ./meta.json ./meta.json
+
+# Asignar los permisos de ejecución nativos de Linux de forma estricta (chmod 755)
+RUN chmod 755 ./libvulkan_freedreno.so ./meta.json
+
+# Generar el archivo ZIP plano con estrictamente los componentes sueltos en la raíz
+RUN zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
+RUN mv ../panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
+
+CMD ["cat", "panvk-mali-bifrost-driver.zip"]
