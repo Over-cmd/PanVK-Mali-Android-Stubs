@@ -16,23 +16,16 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Forzar Resolución de Red Estática y Descarga de Driver Real de 18 MB
+    - name: 🔧 2. Forzar Descarga con Mapeo IP Directo (Bypass de Red e Hosts)
       run: |
-        echo "-> Configurando bypass estático para el servidor de archivos de GitHub..."
-        # Mapeamos las direcciones IP estáticas oficiales de Cloudflare/GitHub en el archivo hosts del sistema
-        # Esto soluciona por completo el error de resolución 'Could not resolve host' (exit code 6)
-        echo "185.199.108.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.109.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.110.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.111.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-
         echo "-> Creando espacio de trabajo aislado en el servidor..."
         mkdir -p driver_workspace
         cd driver_workspace
 
-        echo "-> Descargando el binario auténtico de 18.25 MB saltándose el fallo de DNS..."
-        # Usamos curl apuntando a la ruta del archivo crudo real de Mesa
-        curl -L -f -o ./libvulkan_freedreno.so https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/libvulkan_freedreno.so
+        echo "-> Descargando el binario real forzando el enrutamiento IP..."
+        # Usamos la bandera --resolve para inyectar la IP estática de GitHub Content directo en la petición.
+        # Esto soluciona el fallo de DNS (exit code 6) y el error de sintaxis del hosts (exit code 3).
+        curl -L -f --resolve ://githubusercontent.com:185.199.108.133 -o ./libvulkan_freedreno.so https://githubusercontent.com
 
         echo "-> Validando permisos de lectura y ejecución nativos de Linux (CHMOD 755)..."
         chmod 755 ./libvulkan_freedreno.so
@@ -42,7 +35,7 @@ jobs:
         echo "======================================================"
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 1-File en Raíz)..."
-        # La bandera -j introduce libvulkan_freedreno.so real y pesado suelto en la raíz del ZIP final
+        # La bandera -j introduce únicamente libvulkan_freedreno.so real suelto en la raíz del ZIP final
         zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so
         cd ..
 
