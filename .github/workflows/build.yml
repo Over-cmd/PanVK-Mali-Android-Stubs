@@ -8,52 +8,48 @@ on:
 jobs:
   repackage-vulkan-driver:
     runs-on: ubuntu-latest
-
     steps:
     - name: 📥 1. Clonar tu repositorio
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Crear Inyecciones de Parches Estáticos
+    - name: 🔧 2. Parchear y Preparar Configuración (Stubs Nihui)
       run: |
-        # Creación de parches y configuraciones sin dependencias de red
+        # Generación de parches de extensiones y cross-file de manera estática
         cat << 'EOF' > extensions.patch
-        --- mesa-orig/src/vulkan/util/vk_extensions.py
-        +++ mesa-new/src/vulkan/util/vk_extensions.py
+        --- a/src/vulkan/util/vk_extensions.py
+        +++ b/src/vulkan/util/vk_extensions.py
         @@ -50,6 +50,7 @@ class Extension:
+             return ext
+         
+             def c_android_condition(self):
         +        return 'true'
+                 # if it's an EXT or vendor extension, it's allowed
+                 if not self.name.startswith(ANDROID_EXTENSION_WHITELIST_PREFIXES):
+                     return 'true'
         EOF
-
-        cat << 'EOF' > android-aarch64
-        [binaries]
-        c = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
-        cpp = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-static-libstdc++']
-        [host_machine]
-        system = 'android'
-        cpu_family = 'aarch64'
-        EOF
-
-        # Inyección de parches en el Dockerfile
+        # ... (configuración android-aarch64 y android_stub.patch) ...
+        # Se inyectan parches directamente en Dockerfile.build
         sed -i '/git clone/a RUN cd mesa && patch -p1 < /root/extensions.patch || true' Dockerfile.build
-        sed -i 's|--cross-file .*|--cross-file /root/android-aarch64|g' Dockerfile.build || true
+        # ...
 
     - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: 🚀 4. Compilación Nativa via Docker
       run: |
-        cp extensions.patch ./ || true
-        cp android-aarch64 ./ || true
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 5. Extracción y Empaquetado Final
+    - name: 📦 5. Extraer y Empaquetar Driver (Formato Plano)
       run: |
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./raw-driver.zip
         docker rm container-extract
-        # (Aquí se añaden pasos para generar meta.json y re-zipar, simplificado)
-        mkdir -p plano_workspace && unzip ./raw-driver.zip -d ./plano_workspace
-        # Generar meta.json y re-zipar los 4 archivos necesarios
-        # ... (comandos de manipulación de archivos)
+        mkdir -p plano_workspace
+        unzip ./raw-driver.zip -d ./plano_workspace
+        cd plano_workspace
+        # Generar meta.json y preparar archivos (chmod 755)
+        zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
+        cd ..
 
     - name: 📤 6. Subir Artefacto
       uses: actions/upload-artifact@v4
