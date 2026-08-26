@@ -13,28 +13,34 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Parchear e Inyectar Stubs de Nihui en la Receta de Docker
+    - name: 🔧 2. Descargar e Inyectar Stubs de Nihui (IP Directa Fix)
       run: |
-        echo "-> Configurando inyección de parches en caliente para Mesa 26.2..."
+        echo "-> Configurando resolución forzada de red para GitHub Raw..."
+        # Mapeamos la IP oficial de GitHub Content en el archivo hosts para saltarnos el fallo del DNS del servidor
+        echo "185.199.108.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
+        echo "185.199.109.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
+        echo "185.199.110.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
+        echo "185.199.111.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
+
+        echo "-> Descargando parches oficiales de evasión de Linker y Extensiones..."
+        curl -L -f -o android_stub.patch https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/mesa-implement-android_stub.patch
+        curl -L -f -o extensions.patch https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/mesa-android-include-all-vulkan-extension.patch
+        curl -L -f -o android-aarch64 https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/android-aarch64
+
+        echo "-> Inyectando parches dentro de la receta de Docker..."
+        # Insertamos los comandos de parcheo nativos dentro de tu Dockerfile.build original en caliente
+        sed -i '/git clone/a RUN curl -L -f -o android_stub.patch https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/mesa-implement-android_stub.patch \&\& patch -p1 < android_stub.patch || true' Dockerfile.build
+        sed -i '/git clone/a RUN curl -L -f -o extensions.patch https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/mesa-android-include-all-vulkan-extension.patch \&\& patch -p1 < extensions.patch || true' Dockerfile.build
         
-        # Insertamos comandos dentro de tu Dockerfile.build original para que descargue
-        # y aplique los parches nativos de evasión de Linker y desbloqueo de extensiones
-        # justo después de clonar el código fuente de Mesa.
-        sed -i '/git clone/a RUN curl -L -o android_stub.patch https://githubusercontent.com \&\& patch -p1 < android_stub.patch || true' Dockerfile.build
-        sed -i '/git clone/a RUN curl -L -o extensions.patch https://githubusercontent.com \&\& patch -p1 < extensions.patch || true' Dockerfile.build
-        
-        # Forzamos a Meson a compilar utilizando el archivo de configuración cruzada de Nihui
+        # Obligamos a Meson a compilar utilizando el archivo cruzado de Nihui para la API 26
         sed -i 's|--cross-file .*|--cross-file /root/android-aarch64|g' Dockerfile.build || true
-        
-        echo "-> Descargando archivo de configuración de entorno android-aarch64..."
-        curl -L -o android-aarch64 https://githubusercontent.com
 
     - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: 🚀 4. Procesar y Generar Compilación Nativa via Docker
       run: |
-        # Colocamos el archivo de configuración cruzada en el contexto de Docker
+        # Añadimos el archivo de configuración cruzada de Nihui al entorno raíz de Docker
         cp android-aarch64 ./ || true
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
@@ -45,14 +51,14 @@ jobs:
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./raw-driver.zip
         docker rm container-extract
 
-        echo "-> Creando espacio de trabajo limpio para la desduplicación..."
+        echo "-> Creando espacio de trabajo limpio..."
         mkdir -p plano_workspace
         unzip ./raw-driver.zip -d ./plano_workspace || true
         cd plano_workspace
 
         echo "-> Sincronizando meta.json con el pasaporte de enlazado dinámico..."
-        # Sobreescribimos el meta.json manteniendo el nombre original de tu biblioteca libvulkan_freedreno.so,
-        # pero inyectando el tipo 'vulkan' y la variable LD_PRELOAD para forzar la carga de libglapi.so.0.
+        # Escribimos el meta.json plano manteniendo intacto tu nombre libvulkan_freedreno.so
+        # e introduciendo la variable de precarga LD_PRELOAD para arrancar libglapi.so.0
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -72,11 +78,11 @@ jobs:
         EOF
 
         echo "-> Asegurando permisos nativos de ejecución (CHMOD 755)..."
-        # Forzamos los permisos correctos en Linux para que Android no rechace la lectura de los binarios
+        # Forzamos los permisos correctos para que Android no rechace la lectura de las librerías
         chmod 755 libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json || true
 
         echo "-> Generando el archivo ZIP plano oficial (Estrictamente los 4 archivos sueltos)..."
-        # La bandera -j (junk paths) garantiza que el ZIP no tenga carpetas internas, guardando los 4 elementos sueltos
+        # La bandera -j elimina las subcarpetas, empaquetando tus 4 archivos nativos sueltos en la raíz
         rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
         cd ..
