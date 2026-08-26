@@ -20,21 +20,23 @@ jobs:
       run: |
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 4. Extraer Paquete y Forzar Estructura de 4 Archivos Planos
+    - name: 📦 4. Extraer Paquete y Forzar Formato Plano Estricto (4 Archivos en Raíz)
       run: |
-        echo "-> Extrayendo el contenedor de Docker..."
+        echo "-> Extrayendo el contenedor temporal de Docker..."
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./raw-driver.zip
         docker rm container-extract
 
         echo "-> Creando espacio de trabajo limpio..."
-        mkdir -p driver_workspace
-        unzip ./raw-driver.zip -d ./driver_workspace || true
-        cd driver_workspace
+        mkdir -p plano_workspace
+        
+        # Descomprimimos los archivos sueltos en nuestra carpeta de trabajo temporal
+        unzip ./raw-driver.zip -d ./plano_workspace || true
+        cd plano_workspace
 
-        echo "-> Escribiendo meta.json con precarga obligatoria..."
-        # Mantenemos intacto tu meta.json original, incluyendo el nombre de tu archivo
-        # libvulkan_freedreno.so, pero forzando LD_PRELOAD para enlazar libglapi.so.0
+        echo "-> Sincronizando meta.json con el pasaporte de enlazado dinámico..."
+        # Escribimos el meta.json exactamente suelto en la raíz del ZIP, manteniendo
+        # el nombre original de tu biblioteca libvulkan_freedreno.so, inyectando LD_PRELOAD.
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -53,11 +55,13 @@ jobs:
         }
         EOF
 
-        echo "-> Aplicando permisos de ejecución (CHMOD 755) a la suite nativa..."
+        echo "-> Asegurando permisos nativos de ejecución (CHMOD 755)..."
+        # Forzamos los permisos correctos en Linux para que Android pueda leer los binarios
         chmod 755 libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json || true
 
-        echo "-> Generando el archivo ZIP con estrictamente los 4 elementos sueltos..."
-        # El comando zip -j asegura que no existan carpetas intermedias ni archivos JSON extra.
+        echo "-> Generando el archivo ZIP plano oficial (Estrictamente los 4 archivos sueltos)..."
+        # La bandera -j (junk paths) garantiza que el ZIP no tenga carpetas internas, guardando los 4 elementos sueltos
+        rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
         cd ..
 
