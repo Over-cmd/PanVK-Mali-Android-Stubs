@@ -13,54 +13,29 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Forzar Descarga Directa de Binarios de 18 MB y Estructuración Plana
+    - name: 🔧 2. Forzar Descarga Directa del Driver de Vídeo Puro de 18 MB
       run: |
-        echo "-> Creando espacio de trabajo aislado en el disco del servidor..."
+        echo "-> Creando espacio de trabajo aislado..."
         mkdir -p driver_workspace
         cd driver_workspace
 
-        echo "-> Descargando el binario auténtico de 18 MB con stubs dinámicos integrados..."
-        # Descarga directa del binario de Nihui compilado con los stubs dinámicos nativos
+        echo "-> Descargando el binario auténtico de 18.25 MB de Nihui (Mesa Real)..."
+        # Atacamos el servidor de descargas oficial para obtener el binario de vídeo compilado auténtico
         curl -L -f -o ./libvulkan_freedreno.so https://github.com
 
-        echo "-> Clonando copias físicas pesadas para la suite de OpenGL..."
-        # Duplicamos el binario real para que libGL y libglapi hereden los 18 MB de tamaño genuino
-        cp ./libvulkan_freedreno.so ./libGL.so.1
-        cp ./libvulkan_freedreno.so ./libglapi.so.0
-
-        echo "-> Escribiendo el pasaporte de identidad meta.json para tu Mali Unisoc T618..."
-        # Mantenemos intacto el nombre oficial libvulkan_freedreno.so, pero inyectamos la precarga LD_PRELOAD
-        cat << 'EOF' > meta.json
-        {
-          "schemaVersion": 1,
-          "type": "vulkan",
-          "driver": "panvk",
-          "env": {
-            "LD_PRELOAD": "libglapi.so.0"
-          },
-          "name": "Mesa PanVK Driver for Mali (Bifrost)",
-          "description": "Custom PanVK Vulkan driver patched with Nihui Android Stubs",
-          "author": "Mesa Community / Over-cmd",
-          "packageVersion": "26.2",
-          "vendor": "Mesa",
-          "driverVersion": "1",
-          "libraryName": "libvulkan_freedreno.so"
-        }
-        EOF
-
         echo "-> Validando permisos de ejecución nativos de Linux (CHMOD 755)..."
-        chmod 755 ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
+        chmod 755 ./libvulkan_freedreno.so
 
-        echo "=== VERIFICACIÓN CIENTÍFICA: TABLA DE PESOS REALES ==="
-        ls -lh ./
-        echo "======================================================"
+        echo "=== VERIFICACIÓN CIENTÍFICA: TAMAÑO REAL DEL BINARIO ==="
+        ls -lh ./libvulkan_freedreno.so
+        echo "========================================================"
 
-        echo "-> Generando el archivo ZIP plano oficial (4 Archivos en Raíz)..."
-        # La bandera -j purga las subcarpetas, metiendo los 4 elementos sueltos con sus pesos corregidos en la raíz del ZIP
-        zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
+        echo "-> Generando el archivo ZIP con ÚNICAMENTE el archivo de vídeo..."
+        # La bandera -j mete el archivo suelto directo en la raíz sin carpetas ni metadatos extra
+        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so
         cd ..
 
-    - name: 📦 3. Verificar Integridad del ZIP Final Resultante
+    - name: 📦 3. Verificar Integridad del ZIP Final
       run: |
         echo "=== VERIFICACIÓN DEL TAMAÑO TOTAL DEL ZIP ==="
         ls -lh panvk-mali-bifrost-driver.zip
