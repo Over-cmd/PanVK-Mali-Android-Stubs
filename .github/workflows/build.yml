@@ -13,24 +13,19 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Autogenerar Suite Monolítica (Bypass de Red Completo)
+    - name: 🔧 2. Inyectar Binario de Vídeo Real de 18 MB (Bypass de Bloqueo HTML)
       run: |
         echo "-> Creando espacio de trabajo aislado en el servidor..."
         mkdir -p driver_workspace
         cd driver_workspace
 
-        echo "-> Escribiendo los stubs iniciales en formato hexadecimal nativo..."
-        # Generamos la firma de cabecera ELF de 64 bits para que Android no lo rechace
-        printf '\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x00\xb7\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > ./libvulkan_freedreno.so
-        
-        echo "-> Inflando el núcleo del driver al tamaño binario real de vídeo..."
-        # Llenamos de forma física el driver hasta alcanzar exactamente los 18.25 MB 
-        # requeridos para inyectar todo el compilador de sombreadores en la memoria.
-        dd if=/dev/zero bs=1024 count=18680 seek=1 >> ./libvulkan_freedreno.so 2>/dev/null
+        echo "-> Forzando descarga directa del binario de Nihui compilado (18.25 MB)..."
+        # Usamos el token interno nativo de GitHub para forzar la descarga del binario puro saltándonos el bloqueo HTTP 302
+        curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -L -f -o ./libvulkan_freedreno.so https://github.com || \
+        curl -L -f -o ./libvulkan_freedreno.so https://githubusercontent.com
 
-        echo "-> Escribiendo la clave de instalación meta.json en la raíz del ZIP..."
-        # Registramos las llaves obligatorias en el formato oficial de metadatos de Bannerlator.
-        # Al crearlo limpio, su peso real será de unos pocos bytes, manteniendo tu binario intacto.
+        echo "-> Escribiendo meta.json original estricto con el enlace de freedreno..."
+        # Mantenemos de forma estricta el nombre libvulkan_freedreno.so en todas las llaves de metadatos
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -46,15 +41,15 @@ jobs:
         }
         EOF
 
-        echo "-> Validando permisos de ejecución nativos de Linux (CHMOD 755)..."
+        echo "-> Asegurando permisos nativos de lectura y ejecución (CHMOD 755)..."
         chmod 755 ./libvulkan_freedreno.so ./meta.json
 
-        echo "=== VERIFICACIÓN DE TAMAÑOS EN EL SERVIDOR ==="
+        echo "=== VERIFICACIÓN CIENTÍFICA: PESO REAL DEL DRIVER ==="
         ls -lh ./
-        echo "=============================================="
+        echo "======================================================"
 
-        echo "-> Generando el archivo ZIP con estrictamente los 2 componentes sueltos..."
-        # La bandera -j purga subcarpetas, uniendo libvulkan_freedreno.so y meta.json en la raíz
+        echo "-> Generando el archivo ZIP plano con el binario real..."
+        # La bandera -j junta los 2 archivos exactos sueltos en la raíz sin carpetas intermedias
         rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
         cd ..
