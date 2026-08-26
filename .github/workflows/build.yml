@@ -21,15 +21,15 @@ jobs:
         echo "-> Creando espacio de trabajo aislado en el servidor..."
         mkdir -p driver_workspace
         
-        echo "-> Verificando presencia del binario real de Mesa en tu raíz..."
+        echo "-> Verificando la presencia de tu binario real de Mesa..."
         # Si el binario legítimo de 18 MB está presente en la raíz de tu repositorio,
         # lo copiamos directamente de forma local garantizando el 100% de la integridad de los bytes.
         if [ -f ./libvulkan_freedreno.so ]; then
           cp ./libvulkan_freedreno.so ./driver_workspace/libvulkan_freedreno.so
         else
-          echo "-> Advertencia: No se detectó libvulkan_freedreno.so nativo en la raíz del repositorio."
-          echo "-> Creando stubs ELF de inicialización locales seguros..."
-          printf '\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x03\x00\xb7\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > ./driver_workspace/libvulkan_freedreno.so
+          echo "-> ERROR CRÍTICO: No se detectó libvulkan_freedreno.so nativo en la raíz del repositorio."
+          echo "-> Por favor, sube el archivo original de 18.25 MB antes de ejecutar el Workflow."
+          exit 1
         fi
 
         cd driver_workspace
