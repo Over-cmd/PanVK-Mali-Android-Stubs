@@ -13,22 +13,33 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Parchear Sintaxis, Identidad y Enlazado Dinámico (LD_PRELOAD Injection)
+    - name: 🔧 2. Parchear Sintaxis, Identidad e ICD Vulkan Manifest (Full Load Fix)
       run: |
-        echo "-> Corrigiendo Dockerfile para forzar empaquetado plano..."
-        # 1. Aseguramos que el ZIP guarde los archivos libres en la raíz sin carpetas relativas
-        sed -i 's/zip -r/zip -j/g' Dockerfile.build || true
-
-        echo "-> Inyectando pasaporte de compatibilidad Mali y precarga de librerías en meta.json..."
-        # 2. Modificamos el archivo meta.json. Además de inyectar las credenciales para que Bannerlator
-        # lo instale dentro del contenedor, añadimos la variable nativa de Linux LD_PRELOAD.
-        # Esto obliga al sistema a precargar libglapi.so.0, resolviendo el fallo de carga del .so de Vulkan.
+        echo "-> Configurando meta.json con pasaporte Mali..."
+        # 1. Ajustamos meta.json para que Bannerlator lo instale dentro del contenedor
         if [ -f "meta.json" ]; then
           sed -i 's/"name":/"type": "vulkan", "driver": "panvk", "env": {"LD_PRELOAD": "libglapi.so.0"}, "name":/g' meta.json || true
         fi
-        
-        echo "=== VERIFICACIÓN DEL PARCHE EN META.JSON ==="
-        cat meta.json || true
+
+        echo "-> Creando el archivo obligatorio de manifiesto ICD para Vulkan..."
+        # 2. Generamos el archivo .json que el cargador de Vulkan de Android exige para poder
+        # mapear e inicializar el binario libvulkan_freedreno.so. Sin esto, el driver no se lee.
+        cat << 'EOF' > freedreno_icd.json
+        {
+            "file_format_version": "1.0.0",
+            "ICD": {
+                "library_path": "libvulkan_freedreno.so",
+                "api_version": "1.1.0"
+            }
+        }
+        EOF
+
+        echo "-> Modificando Dockerfile para empaquetar de forma plana con el JSON..."
+        # 3. Forzamos a Dockerfile a incluir freedreno_icd.json en la raíz usando zip -j (junk paths)
+        sed -i 's/zip -r ..\/panvk-mali-bifrost-driver.zip .\/libGL.so.1 .\/libglapi.so.0 .\/libvulkan_freedreno.so .\/meta.json/zip -j ..\/panvk-mali-bifrost-driver.zip .\/libGL.so.1 .\/libglapi.so.0 .\/libvulkan_freedreno.so .\/meta.json .\/freedreno_icd.json/g' Dockerfile.build || true
+
+        echo "=== VERIFICACIÓN DE MANIFIESTO NATIVO ==="
+        cat freedreno_icd.json || true
 
     - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
