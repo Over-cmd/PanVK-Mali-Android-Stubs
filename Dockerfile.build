@@ -12,9 +12,9 @@ RUN apt-get update && apt-get install -y \
     meson ninja-build crossbuild-essential-arm64 curl patch xz-utils lld ccache \
     && rm -rf /var/lib/apt/lists/*
 
-# Descargar e instalar de forma segura el Android NDK r25c oficial (Requerido para API 26 Clang)
-RUN curl -L https://google.com -o ndk.sh \
-    && sh ndk.sh && rm -f ndk.sh \
+# Descargar e instalar el Android NDK r25c oficial
+RUN curl -L https://google.com -o ndk.zip \
+    && unzip ndk.zip && rm -f ndk.zip \
     && mv android-ndk-r25c android-ndk
 
 # Copiar las configuraciones estáticas preparadas por el pipeline de GitHub Actions
