@@ -16,25 +16,19 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Forzar Descarga y Estructuración Indexada ARM64 (Bypass Total)
+    - name: 🔧 2. Descargar y Estructurar con Mapeo IP Directo (Bypass Total de Red)
       run: |
-        echo "-> Configurando bypass de DNS estático para el servidor de archivos..."
-        echo "185.199.108.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.109.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.110.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-        echo "185.199.111.133 ://githubusercontent.com" | sudo tee -a /etc/hosts
-
         echo "-> Creando el espacio de trabajo con la jerarquía indexada de Android..."
-        # Bannerlator exige de forma estricta que los binarios .so residan bajo la estructura de hardware nativa
+        # Bannerlator exige que las librerías .so residan bajo la estructura de hardware nativa de 64 bits
         mkdir -p driver_workspace/arm64-v8a
         cd driver_workspace
 
         echo "-> Descargando el código máquina de vídeo real de 18.25 MB de Mesa..."
-        # Descarga directa del binario unificado que integra las extensiones masivas de traducción gráfica
-        curl -L -f -o ./arm64-v8a/libvulkan_freedreno.so https://://githubusercontent.com/nihui/mesa-turnip-android-driver/master/libvulkan_freedreno.so
+        # Usamos la bandera --resolve limpia. Esto soluciona el fallo de DNS y evita el error de sintaxis del hosts (exit code 3)
+        curl -L -f --resolve ://githubusercontent.com:185.199.108.133 -o ./arm64-v8a/libvulkan_freedreno.so https://githubusercontent.com
 
         echo "-> Escribiendo el pasaporte meta.json en la raíz del espacio de trabajo..."
-        # El archivo meta.json debe quedar en la raíz para que el menú de la app lea el controlador antes de inyectar el .so
+        # El archivo meta.json debe quedar suelto al lado de la carpeta arm64-v8a para que la app lea el controlador
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -59,7 +53,7 @@ jobs:
         echo "=================================================="
 
         echo "-> Generando el archivo ZIP con la indexación requerida..."
-        # Comprimimos de forma relativa para preservar meta.json en la raíz y la subcarpeta física arm64-v8a/
+        # Comprimimos de forma relativa para conservar meta.json en la raíz y la subcarpeta física arm64-v8a/
         zip -r ../panvk-mali-bifrost-driver.zip ./meta.json ./arm64-v8a
         cd ..
 
