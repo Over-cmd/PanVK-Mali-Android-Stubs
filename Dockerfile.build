@@ -1,70 +1,63 @@
 # ==========================================
-# STAGE 1: Entorno de Compilación Cruzada
+# STAGE 1: Compilación de Mesa PanVK con Stubs
 # ==========================================
-FROM ubuntu:22.04 AS builder
-ENV DEBIAN_FRONTEND=noninteractive
-
+FROM alpine:latest AS builder
 WORKDIR /root
 
-# Instalar dependencias esenciales de compilación para Mesa y parches
-RUN apt-get update && apt-get install -y \
-    git build-essential python3 python3-pip python3-mako \
-    meson ninja-build crossbuild-essential-arm64 curl patch xz-utils lld ccache \
-    && rm -rf /var/lib/apt/lists/*
+# Instalar todas las dependencias necesarias de Alpine, incluyendo unzip
+RUN apk add --no-cache \
+    curl \
+    unzip \
+    build-base \
+    meson \
+    ninja \
+    python3 \
+    py3-mako \
+    git \
+    bison \
+    flex \
+    wayland-dev \
+    wayland-protocols
 
-# Descargar e instalar el Android NDK r25c oficial
-RUN curl -L https://google.com -o ndk.zip \
-    && unzip ndk.zip && rm -f ndk.zip \
+# Descargar e instalar el Android NDK r25c oficial de forma legítima
+RUN curl -L "https://google.com" -o ndk.zip \
+    && unzip ndk.zip \
+    && rm -f ndk.zip \
     && mv android-ndk-r25c android-ndk
 
-# Copiar las configuraciones estáticas preparadas por el pipeline de GitHub Actions
+# Clonar el código fuente de Mesa 26.2
+RUN git clone --depth 1 -b main https://freedesktop.org
+
+# Copiar los parches locales generados por el flujo YAML
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Configurar el token y clonar la rama oficial estable de Mesa 26.2
-RUN git clone --depth 1 --branch main https://freedesktop.org /root/mesa
+# Aplicar los parches sobre el código fuente de Mesa e inyectar configuraciones
+RUN cd mesa \
+    && patch -p1 < /root/extensions.patch || true \
+    && patch -p1 < /root/android_stub.patch || true \
+    && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# Aplicar los parches de Nihui de forma quirúrgica en el código fuente de Mesa
-RUN cd /root/mesa && patch -p1 < /root/android_stub.patch || true
-RUN cd /root/mesa && patch -p1 < /root/extensions.patch || true
-
-# Reemplazar la macro NDKDIR en el archivo de configuración cruzada con la ruta real del contenedor
-RUN sed -i 's|NDKDIR|/root/android-ndk|g' /root/android-aarch64
-
-# Lanzar la compilación estática monolítica combinando el backend de Panfrost con los stubs de Nihui
-RUN cd /root/mesa && meson setup build-android \
-    --cross-file /root/android-aarch64 \
-    -Dshared-glapi=false \
-    -Dgallium-drivers=[panfrost] \
-    -Dvulkan-drivers=[panfrost] \
-    -Dbuildtype=release \
-    -Dplatforms=android \
-    -Dplatform-sdk-version=26 \
+# Configurar y compilar Mesa en modo Monolítico Estático para Bifrost
+RUN cd mesa \
+    && meson setup build-android \
+       --cross-file /root/android-aarch64 \
+       -Dshared-glapi=false \
+       -Dgallium-drivers=[panfrost] \
+       -Dvulkan-drivers=[panfrost] \
+       -Dplatform=android \
+       -Dbuildtype=release \
     && ninja -C build-android
 
-# Organizar el binario compilado masivo final en un espacio limpio
-RUN mkdir -p /root/output \
-    && cp /root/mesa/build-android/src/vulkan/wsi/libvulkan_freedreno.so /root/output/libvulkan_freedreno.so || \
-       cp /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so /root/output/libvulkan_freedreno.so
-
 # ==========================================
-# STAGE 2: Generación del Paquete ZIP Final
+# STAGE 2: Extracción y Limpieza del Driver Único
 # ==========================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Instalar zip para comprimir el binario suelto
-RUN apk add --no-cache zip
+# Copiar únicamente el archivo binario final compilado
+COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_freedreno.so
 
-# Traemos el driver real pesado de 18 MB procesado en la etapa anterior sin dependencias secundarias
-COPY --from=builder /root/output/libvulkan_freedreno.so ./libvulkan_freedreno.so
-
-# Aplicar permisos nativos de ejecución estrictos de Linux (CHMOD 755)
+# Aplicar permisos nativos de Linux de ejecución
 RUN chmod 755 ./libvulkan_freedreno.so
-
-# COMPRESIÓN EN RAÍZ: Empaquetamos únicamente el archivo libvulkan_freedreno.so pesado y suelto
-RUN zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so
-RUN mv ../panvk-mali-bifrost-driver.zip ./panvk-mali-bifrost-driver.zip
-
-CMD ["cat", "panvk-mali-bifrost-driver.zip"]
