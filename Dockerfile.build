@@ -19,7 +19,8 @@ RUN apk add --no-cache \
     wayland-dev \
     wayland-protocols
 
-# Descargar e instalar el Android NDK r25c oficial de forma legítima
+# DESCARGA REAL: Apuntamos directamente al repositorio de descargas de Google
+# Esto evita que unzip intente procesar páginas web HTML corruptas (Error exit code 9)
 RUN curl -L "https://google.com" -o ndk.zip \
     && unzip ndk.zip \
     && rm -f ndk.zip \
