@@ -78,7 +78,6 @@ jobs:
         echo "===================================================="
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 1-File en Raíz)..."
-        # La bandera -j introduce libvulkan_freedreno.so suelto en la raíz del ZIP final sin carpetas intermedias
         rm -f ./panvk-mali-bifrost-driver.zip
         zip -j ./panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so
 
