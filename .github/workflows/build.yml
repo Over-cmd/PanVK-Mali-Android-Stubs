@@ -20,21 +20,21 @@ jobs:
       run: |
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 4. Extraer Paquete y Reparar Permisos Nativos (Bifrost Fix)
+    - name: 📦 4. Extraer Paquete y Forzar Estructura de 4 Archivos Planos
       run: |
-        echo "-> Extrayendo el contenedor temporal de Docker..."
+        echo "-> Extrayendo el contenedor de Docker..."
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/panvk-mali-bifrost-driver.zip ./raw-driver.zip
         docker rm container-extract
 
-        echo "-> Desempaquetando para corregir la estructura..."
+        echo "-> Creando espacio de trabajo limpio..."
         mkdir -p driver_workspace
         unzip ./raw-driver.zip -d ./driver_workspace || true
         cd driver_workspace
 
-        echo "-> Sincronizando tu meta.json original con entorno nativo..."
-        # Mantenemos intacta la estructura original de tu meta.json, inyectando el tipo
-        # y la precarga obligatoria LD_PRELOAD para que el linker no ignore libvulkan_freedreno.so
+        echo "-> Escribiendo meta.json con precarga obligatoria..."
+        # Mantenemos intacto tu meta.json original, incluyendo el nombre de tu archivo
+        # libvulkan_freedreno.so, pero forzando LD_PRELOAD para enlazar libglapi.so.0
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -53,26 +53,12 @@ jobs:
         }
         EOF
 
-        echo "-> Creando el archivo de manifiesto ICD que exige Android..."
-        # Generamos el archivo .json que el cargador de Vulkan de Android exige para poder mapear
-        # tu binario oficial libvulkan_freedreno.so sin pasarlo por alto.
-        cat << 'EOF' > freedreno_icd.json
-        {
-            "file_format_version": "1.0.0",
-            "ICD": {
-                "library_path": "libvulkan_freedreno.so",
-                "api_version": "1.1.0"
-            }
-        }
-        EOF
+        echo "-> Aplicando permisos de ejecución (CHMOD 755) a la suite nativa..."
+        chmod 755 libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json || true
 
-        echo "-> Aplicando permisos de ejecución (CHMOD 755) a tus archivos nativos..."
-        # Forzamos los permisos correctos para que Android no rechace la lectura de los binarios
-        chmod 755 libGL.so.1 libglapi.so.0 libvulkan_freedreno.so meta.json freedreno_icd.json || true
-
-        echo "-> Comprimiendo el paquete final de forma plana..."
-        # Re-comprimimos usando zip -j para eliminar cualquier carpeta oculta o relativa
-        zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json ./freedreno_icd.json
+        echo "-> Generando el archivo ZIP con estrictamente los 4 elementos sueltos..."
+        # El comando zip -j asegura que no existan carpetas intermedias ni archivos JSON extra.
+        zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json
         cd ..
 
     - name: 📤 5. Subir Driver a los Artefactos de GitHub
