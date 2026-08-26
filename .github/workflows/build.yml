@@ -13,11 +13,11 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Parchear Sintaxis, Entorno y Manifiesto ICD (Mesa Freedreno Native)
+    - name: 🔧 2. Parchear Sintaxis, Entorno y Manifiesto ICD Nativo (Mesa Freedreno Fix)
       run: |
-        echo "-> Sincronizando meta.json original con precarga de hilos gráficos..."
-        # Mantenemos intacto tu meta.json original, incluyendo el nombre exacto de libvulkan_freedreno.so,
-        # pero inyectamos de forma segura el tipo de driver y la variable LD_PRELOAD para que el linker cargue libglapi.so.0.
+        echo "-> Configurando meta.json oficial manteniendo libvulkan_freedreno.so..."
+        # Tomamos tu meta.json original y le inyectamos las llaves esenciales de tipo
+        # y la precarga de entorno LD_PRELOAD para que el linker no ignore libvulkan_freedreno.so.
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
@@ -37,8 +37,8 @@ jobs:
         EOF
 
         echo "-> Creando el archivo obligatorio de manifiesto ICD para Freedreno Vulkan..."
-        # Generamos el manifiesto ICD que exige el cargador de Vulkan de Android para poder
-        # mapear e inicializar el archivo libvulkan_freedreno.so de forma nativa en el contenedor.
+        # Generamos el manifiesto ICD que exige el sistema de capas de Android para registrar
+        # oficialmente el driver en el contenedor sin fallos de lectura.
         cat << 'EOF' > freedreno_icd.json
         {
             "file_format_version": "1.0.0",
@@ -49,12 +49,12 @@ jobs:
         }
         EOF
 
-        echo "-> Modificando Dockerfile para empaquetado plano completo (Vulkan + OpenGL)..."
-        # Reemplazamos la línea de compresión original del Dockerfile para forzar zip -j (elimina rutas relativas)
-        # e incluimos limpiamente libGL.so.1, libglapi.so.0, libvulkan_freedreno.so, meta.json y freedreno_icd.json sueltos en la raíz.
+        echo "-> Modificando Dockerfile para empaquetado plano unificado (zip -j)..."
+        # Reemplazamos la línea de compresión original del Dockerfile para forzar zip -j (junk paths).
+        # Esto elimina los puntos y rutas relativas, dejando los 5 archivos planos en la raíz del ZIP.
         sed -i 's|RUN zip -r ../panvk-mali-bifrost-driver.zip .*|RUN zip -j ../panvk-mali-bifrost-driver.zip ./libGL.so.1 ./libglapi.so.0 ./libvulkan_freedreno.so ./meta.json ./freedreno_icd.json|g' Dockerfile.build || true
 
-        echo "=== VERIFICACIÓN DEL ENTORNO NATIVO ==="
+        echo "=== VERIFICACIÓN DE MANIFIESTOS NATIVOS ==="
         cat meta.json || true
         echo "========================================"
         cat freedreno_icd.json || true
