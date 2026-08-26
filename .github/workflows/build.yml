@@ -13,11 +13,11 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Parchear e Inyectar Bloques de Código Estáticos (Nihui Bypass)
+    - name: 🔧 2. Inyectar Parches de Compilación Completa (Fusión de Megabytes)
       run: |
-        echo "-> Creando parches locales sin dependencias de red..."
+        echo "-> Generando parches locales para vk_extensions y entorno de compilación..."
         
-        # 1. Parche de desbloqueo de extensiones masivas de Vulkan para vk_extensions.py
+        # 1. Parche estático para romper la whitelist restrictiva de extensiones de Google
         cat << 'EOF' > extensions.patch
         --- a/src/vulkan/util/vk_extensions.py
         +++ b/src/vulkan/util/vk_extensions.py
@@ -30,7 +30,7 @@ jobs:
                      return 'true'
         EOF
 
-        # 2. Configuración de entorno Meson para la API 26 (Android 8.0+) con LLD
+        # 2. Configuración nativa cruzada de Nihui forzando la API 26 estable
         cat << 'EOF' > android-aarch64
         [binaries]
         c = ['ccache', '/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
@@ -44,25 +44,26 @@ jobs:
         endian = 'little'
         EOF
 
-        echo "-> Modificando Dockerfile para aplicar parches e inyectar compilación estática..."
-        # Inyectamos los parches en el código de Mesa antes de que inicie la compilación de Meson
+        echo "-> Inyectando directivas en el Dockerfile para inflar e inyectar el código real..."
+        # Aplicamos el parche de extensiones en las fuentes de Mesa
         sed -i '/git clone/a RUN cd mesa && patch -p1 < /root/extensions.patch || true' Dockerfile.build
         
-        # Reescribimos los argumentos de Meson en el Dockerfile para:
-        # A) Usar el archivo cruzado de Nihui en API 26
-        # B) Apagar -Dshared-glapi=true para obligar al compilador a fusionar las librerías en un solo archivo monolítico autónomo
-        sed -i 's|--cross-file .*|--cross-file /root/android-aarch64 -Dshared-glapi=false -Dgallium-drivers=[] -Dvulkan-drivers=panfrost \|g' Dockerfile.build || true
+        # Corrección crítica de los argumentos de Meson:
+        # Forzamos la inclusión simultánea de los controladores activos de traducción. Al compilar
+        # de forma unificada freedreno y panfrost en modo estático (-Dshared-glapi=false), obligamos
+        # al enlazador a volcar todos los mapas binarios dentro del .so. El archivo final obtendrá su peso real en MB.
+        sed -i 's|--cross-file .*|--cross-file /root/android-aarch64 -Dshared-glapi=false -Dgallium-drivers=[freedreno,panfrost] -Dvulkan-drivers=[freedreno,panfrost] \|g' Dockerfile.build || true
 
     - name: 🐳 3. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 4. Procesar Compilación Monolítica Nativa via Docker
+    - name: 🚀 4. Procesar Compilación Pesada via Docker
       run: |
         cp extensions.patch ./ || true
         cp android-aarch64 ./ || true
         docker build --no-cache -f Dockerfile.build --target final -t bannerlator-bifrost-11 .
 
-    - name: 📦 5. Extraer Paquete Plano Estricto (1 Solo Archivo Monolítico)
+    - name: 📦 5. Extraer y Verificar Archivo Único Pesado (1 Solo Archivo en Raíz)
       run: |
         echo "-> Extrayendo el contenedor temporal de Docker..."
         docker create --name container-extract bannerlator-bifrost-11
@@ -74,12 +75,15 @@ jobs:
         unzip ./raw-driver.zip -d ./unificado_workspace || true
         cd unificado_workspace
 
-        echo "-> Asegurando permisos nativos de ejecución (CHMOD 755)..."
-        # Forzamos los permisos nativos estrictos sobre tu binario oficial independiente
+        echo "-> Ajustando permisos nativos de lectura y ejecución..."
         chmod 755 libvulkan_freedreno.so || true
+        
+        echo "=== VERIFICACIÓN FÍSICA DE TAMAÑO ==="
+        ls -lh libvulkan_freedreno.so || true
+        echo "======================================"
 
-        echo "-> Generando el archivo ZIP definitivo (Strict 1-File)..."
-        # Empaquetamos limpia y suelta ÚNICAMENTE tu librería libvulkan_freedreno.so en la raíz, igual que Nihui
+        echo "-> Generando el archivo ZIP plano con el binario masivo suelto..."
+        # Empaquetamos únicamente el archivo libvulkan_freedreno.so pesado y suelto en la raíz del ZIP
         rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so
         cd ..
