@@ -1,13 +1,12 @@
 # =========================================================================
-# STAGE 1: Entorno de Compilación Cruzada (Android NDK + Meson + funnymdzz)
+# STAGE 1: Entorno de Compilación Cruzada con funnymdzz (Mali kbase)
 # =========================================================================
 FROM alpine:latest AS builder
 WORKDIR /root
 
-# Instalar todas las dependencias necesarias de Alpine, incluyendo unzip y pkgconfig
+# Instalar todas las dependencias necesarias de Alpine nativas
 RUN apk add --no-cache \
     curl \
-    unzip \
     build-base \
     meson \
     ninja \
@@ -20,29 +19,22 @@ RUN apk add --no-cache \
     wayland-protocols \
     pkgconfig
 
-# DESCARGA REAL REPARADA: Apuntamos directamente al repositorio de descargas de Google
-# Esto evita que unzip intente procesar páginas web HTML corruptas (Error exit code 9)
-RUN curl -L "https://google.com" -o ndk.zip \
-    && unzip ndk.zip \
-    && rm -f ndk.zip \
-    && mv android-ndk-r25c android-ndk
-
-# Clonar el repositorio real de funnymdzz enfocado en contenedores Android (Mali kbase)
+# Clonar el repositorio real de funnymdzz enfocado en contenedores Android
 RUN git clone --depth 1 https://github.com /root/mesa
 
-# Copiar los parches locales generados por el flujo YAML
+# Recibimos el Android NDK ya desempaquetado y los parches desde el flujo YAML externo
+COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Aplicar los parches sobre el árbol de código fuente de funnymdzz e inyectar el NDK
+# Aplicar los parches sobre el árbol de código fuente de funnymdzz e inyectar la ruta física
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
 # Configurar y compilar Mesa en modo Monolítico Estático para Bifrost (Mali-G52)
-# Desactivamos shared-glapi para que todo el núcleo de vídeo se fusione en el archivo final
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
@@ -55,10 +47,10 @@ RUN cd /root/mesa \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Extracción y Renombrado Estricto para Bannerlator
+# STAGE 2: Extracción y Limpieza del Driver Final de Mali
 # =========================================================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Traemos el binario legítimo de Mali de funnymdzz y lo enmascaramos con el nombre que busca tu emulador
+# Extraemos el binario legítimo compilado de Mali de funnymdzz mapeándolo al nombre freedreno
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_freedreno.so
