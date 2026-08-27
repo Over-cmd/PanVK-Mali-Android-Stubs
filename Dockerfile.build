@@ -44,14 +44,14 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN COMPARTIDA: Activamos shared-glapi y enlazamos panfrost con panvk
+# CONFIGURACIÓN CORREGIDA: Usamos estrictamente el parámetro en plural -Dplatforms=android
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=true \
        -Dgallium-drivers=panfrost \
        -Dvulkan-drivers=panvk \
-       -Dplatform=android \
+       -Dplatforms=android \
        -Dglx=disabled \
        -Degl=disabled \
        -Dgbm=disabled \
