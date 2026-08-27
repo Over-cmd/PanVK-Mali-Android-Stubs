@@ -30,14 +30,13 @@ COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Aplicar los parches locales e inyectar la ruta física del compilador en el archivo cruzado
+# Aplicar los parches locales e inyectar la ruta física del NDK en el cross-file
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN CORREGIDA DEFINITIVA: 
-# Usamos -Dgallium-drivers=none y desactivamos los subcomponentes GLES/GLX de escritorio
+# Configurar y compilar Mesa enfocándose puramente en Vulkan PanVK de funnymdzz
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
@@ -54,10 +53,10 @@ RUN cd /root/mesa \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Extracción y Limpieza del Driver Final de Mali
+# STAGE 2: Conservación del Archivo Real de Mali para la Extracción
 # =========================================================================
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Extraemos el binario legítimo compilado de Mali de funnymdzz mapeándolo al nombre freedreno
-COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_freedreno.so
+# CORRECCIÓN FATAL: Conservamos el binario real de Mali con su nombre original de compilación
+COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
