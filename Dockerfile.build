@@ -48,13 +48,13 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# BLINDAJE DE SHELL Y RUST: Aseguramos el PATH visible y el driver panvk nativo
+# CONFIGURACIÓN MONOLÍTICA REPARADA: Usamos el string nativo compatible de Mesa 26
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
-       -Dshared-glapi=false \
-       -Dgallium-drivers="[]" \
-       -Dvulkan-drivers="['panvk']" \
+       -Dshared-glapi=true \
+       -Dgallium-drivers=panfrost \
+       -Dvulkan-drivers=panfrost \
        -Dplatforms=android \
        -Dglx=disabled \
        -Degl=disabled \
