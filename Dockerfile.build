@@ -4,13 +4,14 @@
 FROM alpine:latest AS builder
 WORKDIR /root
 
-# Instalar dependencias nativas esenciales de Alpine (incluyendo libdrm-dev)
+# Instalar TODO el ecosistema de dependencias de compilación para Mesa 26 / PanVK
 RUN apk add --no-cache \
     curl \
     build-base \
     meson \
     ninja \
     python3 \
+    python3-dev \
     py3-mako \
     git \
     bison \
@@ -18,7 +19,9 @@ RUN apk add --no-cache \
     wayland-dev \
     wayland-protocols \
     pkgconfig \
-    libdrm-dev
+    libdrm-dev \
+    libxshmfence-dev \
+    glslang
 
 # Recibimos las fuentes de Mesa, el Android NDK y los archivos locales desde el flujo YAML
 COPY ./mesa /root/mesa
@@ -27,14 +30,14 @@ COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Aplicar los parches e inyectar la ruta física del compilador en el archivo cruzado
+# Aplicar los parches locales e inyectar la ruta física del compilador en el archivo cruzado
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN CORREGIDA: Ajustamos las banderas al estándar estricto de Mesa 26
-# Cambiamos platforms a -Dplatform=android y ajustamos los arrays de compilación
+# CONFIGURACIÓN LIMPIA COMPLETA: Desactivamos glapi compartido, activamos panfrost
+# y deshabilitamos interfaces innecesarias de escritorio (X11/GLX) que romperían el NDK
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
@@ -42,6 +45,9 @@ RUN cd /root/mesa \
        -Dgallium-drivers=panfrost \
        -Dvulkan-drivers=panfrost \
        -Dplatform=android \
+       -Dglx=disabled \
+       -Degl=disabled \
+       -Dgbm=disabled \
        -Dbuildtype=release \
     && ninja -C build-android
 
