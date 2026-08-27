@@ -16,14 +16,25 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Localizar y Vincular Android NDK Preinstalado (Bypass de Red Absoluto)
+    - name: 🔧 2. Localizar y Vincular Android NDK Preinstalado
       run: |
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
         cp -r "$NDK_PATH" ./android-ndk
 
-    - name: 🔧 3. Auto-Generar Parches Dinámicos Locales
+    - name: 📥 3. Descargar Fuentes de funnymdzz via Tarball Stream (Bypass Git 128)
+      run: |
+        echo "-> Descargando el código fuente comprimido de funnymdzz/mesa..."
+        # Usamos el stream comprimido tar.gz para evadir por completo los bloqueos del comando git clone
+        curl -L "https://github.com" -o mesa.tar.gz
+        
+        echo "-> Desempaquetando el árbol de desarrollo de Mesa..."
+        mkdir -p ./mesa
+        tar -xzf mesa.tar.gz -C ./mesa --strip-components=1
+        rm -f mesa.tar.gz
+
+    - name: 🔧 4. Auto-Generar Parches Dinámicos Locales
       run: |
         echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
@@ -49,15 +60,15 @@ jobs:
          }
          EOF
 
-    - name: 🐳 4. Configurar Docker Buildx
+    - name: 🐳 5. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 5. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
+    - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
-        # Invocamos la construcción. Al existir android-aarch64 físicamente en tu raíz, pasará de largo
+        # Invocamos la construcción limpia libre de comandos git internos
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 6. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
+    - name: 📦 7. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
       run: |
         echo "-> Extrayendo el controlador del contenedor final..."
         docker create --name container-extract bannerlator-bifrost-11
@@ -91,7 +102,7 @@ jobs:
         rm -f ./panvk-mali-bifrost-driver.zip
         zip -j ./panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
 
-    - name: 📤 7. Subir Driver a los Artefactos de GitHub
+    - name: 📤 8. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
