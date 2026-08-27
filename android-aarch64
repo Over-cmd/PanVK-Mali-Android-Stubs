@@ -1,0 +1,11 @@
+[binaries]
+c = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
+cpp = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-static-libstdc++']
+ar = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+strip = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+
+[host_machine]
+system = 'android'
+cpu_family = 'aarch64'
+cpu = 'armv8-a'
+endian = 'little'
