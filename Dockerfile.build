@@ -44,11 +44,11 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN CORREGIDA: Usamos estrictamente el parámetro en plural -Dplatforms=android
+# CONFIGURACIÓN MONOLÍTICA REPARADA: Incrustamos todas las funciones dentro del mismo .so
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
-       -Dshared-glapi=true \
+       -Dshared-glapi=false \
        -Dgallium-drivers=panfrost \
        -Dvulkan-drivers=panvk \
        -Dplatforms=android \
@@ -61,11 +61,10 @@ RUN cd /root/mesa \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Conservación de los Archivos Compartidos para la Extracción
+# STAGE 2: Conservación del Archivo Real Monolítico para la Extracción
 # =========================================================================
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
 
-# Copiamos tanto el driver Vulkan de Mali como la API compartida generada por Meson
+# Copiamos únicamente el driver Vulkan de Mali con su núcleo de ejecución estático integrado
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
-COPY --from=builder /root/mesa/build-android/src/mapi/shared-glapi/libglapi.so ./libglapi.so
