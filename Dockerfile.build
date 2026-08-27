@@ -7,7 +7,7 @@ WORKDIR /root
 # Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales (Eliminamos rustup de APT)
+# Instalar dependencias esenciales y el ecosistema de Rust base
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -23,16 +23,13 @@ RUN apt-get update && apt-get install -y \
     libdrm-dev \
     libxshmfence-dev \
     glslang-tools \
+    rustup \
+    cbindgen \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar Rust de forma nativa mediante el script oficial de Rust-Lang
-RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y \
-    && . "$HOME/.cargo/env" \
-    && rustup target add aarch64-linux-android \
-    && cargo install cbindgen
-
-# Exportar las variables de entorno de Rust de forma global y permanente en Docker
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Configurar el compilador de Rust oficial e inyectar de forma obligatoria el target de Android ARM64
+RUN rustup default stable \
+    && rustup target add aarch64-linux-android
 
 # Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
 RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
@@ -50,28 +47,16 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN MONOLÍTICA DEFINITIVA: Satisface los KMDs de funnymdzz y escapa los arrays
+# CONFIGURACIÓN PURA MALI: Limpiamos la línea de comandos delegando todo al archivo cruzado
 RUN cd /root/mesa \
-    && meson setup build-android \
-       --cross-file /root/android-aarch64 \
-       -Dshared-glapi=false \
-       -Dgallium-drivers="[]" \
-       -Dvulkan-drivers="['panfrost']" \
-       -Dpanfrost-kmds="['kbase']" \
-       -Dplatforms=android \
-       -Dglx=disabled \
-       -Degl=disabled \
-       -Dgbm=disabled \
-       -Dgles1=disabled \
-       -Dgles2=disabled \
-       -Dbuildtype=release \
+    && meson setup build-android --cross-file /root/android-aarch64 -Dbuildtype=release \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Conservación del Archivo Real Monolítico para la Extracción
+# STAGE 2: Conservación del Archivo Real de Mali para la Extracción
 # =========================================================================
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
 
-# Copiamos únicamente el driver Vulkan de Mali con su núcleo de ejecución estático integrado
+# Conservamos el binario real compilado de Mali con su nombre original
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
