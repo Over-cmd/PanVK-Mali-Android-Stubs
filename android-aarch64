@@ -6,9 +6,9 @@ strip = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
 rust = ['rustc', '--target', 'aarch64-linux-android']
 
 [properties]
-c_args = ['-DANDROID']
-cpp_args = ['-DANDROID', '-fno-exceptions', '-static-libstdc++']
-cpp_link_args = ['-static-libstdc++']
+c_args = ['-DANDROID', '--sysroot=NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot']
+cpp_args = ['-DANDROID', '--sysroot=NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-fno-exceptions', '-static-libstdc++']
+cpp_link_args = ['--sysroot=NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-static-libstdc++']
 
 [host_machine]
 system = 'android'
