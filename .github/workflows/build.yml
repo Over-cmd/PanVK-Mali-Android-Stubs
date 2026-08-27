@@ -68,6 +68,7 @@ jobs:
     - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
         cd main_repo
+        # Invocamos la construcción limpia. Usará tu android-aarch64 con API 30 y Rust
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
     - name: 📦 7. Extraer Binario Genuino de Mali y Renombrar para Engañar al APK
@@ -76,12 +77,12 @@ jobs:
         echo "-> Extrayendo el archivo nativo de Mali del contenedor..."
         docker create --name container-extract bannerlator-bifrost-11
         
-        # CORRECCIÓN DE RUTA: Extraemos el archivo real que generó Fenni
+        # Extraemos el archivo real compilado de Mali de tu base de Ubuntu
         docker cp container-extract:/dist/libvulkan_panfrost.so ./libvulkan_panfrost.so
         docker rm container-extract
 
         echo "-> Ejecutando el truco maestro de renombrado físico..."
-        # Renombramos el código máquina real de Mali al formato que exige el cargador de Java
+        # Renombramos el código máquina real al formato de freedreno que busca el APK
         mv ./libvulkan_panfrost.so ./libvulkan_freedreno.so
 
         echo "-> Escribiendo el pasaporte meta.json real para PanVK..."
@@ -91,7 +92,7 @@ jobs:
           "type": "vulkan",
           "driver": "panvk",
           "name": "Mesa PanVK Driver for Mali (Bifrost)",
-          "description": "True PanVK Vulkan driver compiled from funnymdzz for kbase",
+          "description": "True PanVK Vulkan driver compiled from funnymdzz for kbase on API 30",
           "author": "funnymdzz / Over-cmd",
           "packageVersion": "26.2",
           "vendor": "Mesa",
