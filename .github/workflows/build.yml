@@ -30,9 +30,6 @@ jobs:
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
-        
-        echo "-> Copiando el árbol completo del NDK sin alterar su jerarquía de archivos..."
-        # Copiamos la estructura completa original de fábrica para que Clang no pierda el sysroot ni los .o
         cp -r "$NDK_PATH" ./main_repo/android-ndk
 
     - name: 🔧 4. Estructurar Árbol de Trabajo y Mover Fuentes de Mesa
