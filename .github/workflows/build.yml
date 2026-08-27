@@ -1,4 +1,4 @@
-name: Build PanVK Bifrost Vulkan 1.1 for Android 11
+name: Build PanVK Bifrost Vulkan 1.1 Generic Wrapper (TAR.ZST)
 
 on:
   push:
@@ -53,7 +53,7 @@ jobs:
 
         echo "-> Creando parches para bypass del Linker de Android..."
         cat << 'EOF' > ./android_stub.patch
-        --- a/src/android_stub/cutils_stub.cpp
+        --- b/src/android_stub/cutils_stub.cpp
         +++ b/src/android_stub/cutils_stub.cpp
         @@ -5,6 +5,7 @@
          #include "dlfcn_nougat.h"
@@ -68,51 +68,51 @@ jobs:
     - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
         cd main_repo
-        # Lanzamos la construcción limpia. El Dockerfile procesará las Host Tools y luego la compilación cruzada
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 7. Extraer Binario Genuino de Mali y Renombrar para Engañar al APK
+    - name: 📦 7. Instalar Herramientas de Compresión Zstd en el Host
+      run: |
+        sudo apt-get update && sudo apt-get install -y zstd tar
+
+    - name: 🛠️ 8. Estructurar Árbol de Sistema y Generar Wrapper .tar.zst (Modelo Camuflaje APK)
       run: |
         cd main_repo
-        echo "-> Extrayendo el archivo nativo de Mali del contenedor..."
+        echo "-> Creando jerarquía de directorios estándar de Linux exigida..."
+        mkdir -p ./wrapper/usr/lib
+        mkdir -p ./wrapper/usr/share/vulkan/icd.d
+
+        echo "-> Extrayendo el archivo binario nativo de la compilación..."
         docker create --name container-extract bannerlator-bifrost-11
-        docker cp container-extract:/dist/libvulkan_panfrost.so ./libvulkan_panfrost.so
+        # Extraemos el archivo real y le aplicamos tu truco maestro de renombrado a freedreno en la ruta lib
+        docker cp container-extract:/dist/libvulkan_panfrost.so ./wrapper/usr/lib/libvulkan_freedreno.so
         docker rm container-extract
 
-        echo "-> Ejecutando el truco maestro de renombrado físico..."
-        # Transmutamos libvulkan_panfrost.so real a libvulkan_freedreno.so para burlar la lógica en Java del APK
-        mv ./libvulkan_panfrost.so ./libvulkan_freedreno.so
-
-                echo "-> Escribiendo el pasaporte meta.json de camuflaje Turnip..."
-        cat << 'EOF' > meta.json
+        echo "-> Creando el archivo manifiesto ICD oficial de Vulkan (Espejo Estructural de Funny)..."
+        cat << 'EOF' > ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
         {
-          "schemaVersion": 1,
-          "type": "vulkan",
-          "driver": "turnip",
-          "name": "Mesa PanVK Monolithic Driver for Mali (Bifrost)",
-          "description": "True PanVK Vulkan autonomous driver compiled from funnymdzz for kbase on API 30",
-          "author": "funnymdzz / Over-cmd",
-          "packageVersion": "26.2",
-          "vendor": "Mesa",
-          "driverVersion": "1",
-          "libraryName": "libvulkan_freedreno.so"
+            "file_format_version": "1.0.0",
+            "ICD": {
+                "library_path": "libvulkan_freedreno.so",
+                "api_version": "1.1.0"
+            }
         }
         EOF
 
-        echo "-> Asegurando permisos nativos de ejecución de Linux (CHMOD 755)..."
-        chmod 755 ./libvulkan_freedreno.so ./meta.json
+        echo "-> Asegurando permisos de ejecución nativos de Linux (CHMOD 755)..."
+        chmod 755 ./wrapper/usr/lib/libvulkan_freedreno.so
+        chmod 644 ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
 
-        echo "=== VERIFICACIÓN CIENTÍFICA: INTEGRIDAD DE ARTEFACTOS ==="
-        ls -lh ./libvulkan_freedreno.so ./meta.json || true
+        echo "=== VERIFICACIÓN DE INTEGRIDAD ESTRUCTURAL EN LA RAÍZ ==="
+        find ./wrapper -print
         echo "========================================================"
 
-        echo "-> Generando el archivo ZIP plano unificado (Strict 2-Files en Raíz)..."
-        rm -f ../panvk-mali-bifrost-driver.zip
-        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
-        cd ..
+        echo "-> Comprimiendo el árbol usr/ en un Wrapper .tar.zst puro (Nivel 19)..."
+        cd wrapper
+        tar -I 'zstd -v -19' -cf ../../wrapper.tar.zst usr/
+        cd ../..
 
-    - name: 📤 8. Subir Driver a los Artefactos de GitHub
+    - name: 📤 9. Subir Wrapper (.tar.zst) a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
-        name: panvk-mali-bifrost-driver-zip
-        path: panvk-mali-bifrost-driver.zip
+        name: panvk-generic-wrapper-zst
+        path: wrapper.tar.zst
