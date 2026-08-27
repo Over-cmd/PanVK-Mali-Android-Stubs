@@ -19,11 +19,8 @@ jobs:
     - name: 🔧 2. Localizar y Vincular Android NDK Preinstalado (Bypass de Red Absoluto)
       run: |
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
-        # Localizamos la ruta del NDK preinstalado de fábrica en el entorno virtual de GitHub Actions
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
-        
-        echo "-> Copiando el compilador cruzado al espacio de trabajo local..."
         cp -r "$NDK_PATH" ./android-ndk
 
     - name: 🔧 3. Auto-Generar Parches y Archivos de Configuración de Meson
@@ -71,7 +68,6 @@ jobs:
 
     - name: 🚀 5. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
-        # Pasamos el NDK real ya presente en el sistema a Docker, destruyendo el error 9 de raíz
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
     - name: 📦 6. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
