@@ -70,13 +70,19 @@ jobs:
         cd main_repo
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 7. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
+    - name: 📦 7. Extraer Binario Genuino de Mali y Renombrar para Engañar al APK
       run: |
         cd main_repo
-        echo "-> Extrayendo el controlador del contenedor final..."
+        echo "-> Extrayendo el archivo nativo de Mali del contenedor..."
         docker create --name container-extract bannerlator-bifrost-11
-        docker cp container-extract:/dist/libvulkan_freedreno.so ./libvulkan_freedreno.so
+        
+        # CORRECCIÓN DE RUTA: Extraemos el archivo real que generó Fenni
+        docker cp container-extract:/dist/libvulkan_panfrost.so ./libvulkan_panfrost.so
         docker rm container-extract
+
+        echo "-> Ejecutando el truco maestro de renombrado físico..."
+        # Renombramos el código máquina real de Mali al formato que exige el cargador de Java
+        mv ./libvulkan_panfrost.so ./libvulkan_freedreno.so
 
         echo "-> Escribiendo el pasaporte meta.json real para PanVK..."
         cat << 'EOF' > meta.json
@@ -97,9 +103,9 @@ jobs:
         echo "-> Asegurando permisos nativos de ejecución de Linux (CHMOD 755)..."
         chmod 755 ./libvulkan_freedreno.so ./meta.json
 
-        echo "=== VERIFICACIÓN DE INTEGRIDAD EN EL REPOSITORIO ==="
+        echo "=== VERIFICACIÓN CIENTÍFICA: INTEGRIDAD DE ARTEFACTOS ==="
         ls -lh ./libvulkan_freedreno.so ./meta.json || true
-        echo "===================================================="
+        echo "========================================================"
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 2-Files en Raíz)..."
         rm -f ../panvk-mali-bifrost-driver.zip
