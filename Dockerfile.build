@@ -5,11 +5,11 @@ FROM ubuntu:24.04 AS builder
 WORKDIR /root
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Instalar dependencias necesarias
+# 1. Instalar dependencias necesarias (Incluyendo LLVM 18 y Clang nativos de Ubuntu 24.04)
 RUN apt-get update && apt-get install -y \
     curl build-essential meson ninja-build python3 python3-pip python3-mako git \
     bison flex pkg-config libdrm-dev libxshmfence-dev glslang-tools \
-    rustup llvm-dev libclang-dev libelf-dev spirv-tools gettext \
+    rustup llvm-18-dev libclang-18-dev libelf-dev spirv-tools gettext \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Configurar Rust y target móvil
@@ -28,7 +28,8 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# 4. FASE 1: Generación de Host Tools nativas (x86_64) sin caracteres de escape corruptos
+# 4. FASE 1: Generación de Host Tools nativas (x86_64) - REPARADO CON LLVM ENABLED
+# Activamos LLVM para que el compilador intermedio mesa_clc pueda estructurar el código gráfico
 RUN cd /root/mesa \
     && meson setup build-host \
        -Dplatforms= \
@@ -37,20 +38,20 @@ RUN cd /root/mesa \
        -Dtools=panfrost \
        -Dprecomp-compiler=enabled \
        -Dinstall-precomp-compiler=true \
-       -Dllvm=disabled \
+       -Dllvm=enabled \
        -Dmesa-clc=enabled \
        -Dinstall-mesa-clc=true \
     && ninja -C build-host src/compiler/clc/mesa_clc \
        src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
 
-# 5. Configurar PATH y variables para compilación cruzada
+# 5. Configurar PATH y variables para compilación cruzada móviles
 ENV PATH="/root/mesa/build-host/src/compiler/clc:/root/mesa/build-host/src/compiler/spirv:/root/mesa/build-host/src/panfrost/clc:${PATH}"
 ENV NDK_PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
 ENV PATH="${NDK_PATH}:${PATH}"
 ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${NDK_PATH}/aarch64-linux-android30-clang"
 ENV RUSTFLAGS="-C linker=${CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER}"
 
-# 6. FASE 2: Compilación Cruzada para Android ARM64 con sintaxis limpia
+# 6. FASE 2: Compilación Cruzada para Android ARM64 (Aquí sí se apaga LLVM para el móvil)
 RUN cd /root/mesa \
     && meson setup build-android --cross-file /root/android-aarch64 \
        -Dbuildtype=release \
@@ -70,7 +71,7 @@ RUN cd /root/mesa \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Extracción final
+# STAGE 2: Extracción final del driver unificado monolítico
 # =========================================================================
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
