@@ -16,7 +16,7 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Forzar Empaquetado Monolítico (Inyección de Pasaporte meta.json)
+    - name: 🔧 2. Forzar Empaquetado Monolítico Seguro (Bypass de Crash)
       run: |
         echo "-> Creando espacio de trabajo aislado en el servidor..."
         mkdir -p driver_workspace
@@ -31,18 +31,13 @@ jobs:
 
         cd driver_workspace
 
-        echo "-> Escribiendo el pasaporte de metadatos oficial con precarga de entorno..."
-        # El secreto está en inyectar el entorno dinámico "env" dentro del JSON. 
-        # Al importarlo, Bannerlator leerá estas llaves y las aplicará de forma limpia en el contenedor.
+        echo "-> Escribiendo el pasaporte meta.json estándar sin variables de colapso..."
+        # Eliminamos las directivas forzadas que hacían que el driver de Adreno colapsara en tu chip Mali
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
           "type": "vulkan",
           "driver": "panvk",
-          "env": {
-            "MESA_LOADER_DRIVER_OVERRIDE": "panfrost",
-            "PANVK_DEBUG": "sync"
-          },
           "name": "Mesa PanVK Driver for Mali (Bifrost)",
           "description": "Custom PanVK Vulkan driver patched with Nihui Android Stubs",
           "author": "Mesa Community / Over-cmd",
@@ -61,7 +56,7 @@ jobs:
         echo "=========================================================="
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 2-Files en Raíz)..."
-        # La bandera -j purga subcarpetas, metiendo libvulkan_freedreno.so y meta.json sueltos en la raíz
+        # Empaquetamos libvulkan_freedreno.so y meta.json sueltos de forma estrictamente plana en la raíz
         rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
         cd ..
