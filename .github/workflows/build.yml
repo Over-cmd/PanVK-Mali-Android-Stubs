@@ -16,15 +16,15 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Descargar y Extraer Android NDK r25c de forma Segura (Host Bypass)
+    - name: 🔧 2. Localizar y Vincular Android NDK Preinstalado (Bypass de Red Absoluto)
       run: |
-        echo "-> Descargando el Android NDK oficial desde los servidores legítimos de Google..."
-        curl -L "https://google.com" -o ndk_host.zip
+        echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
+        # Localizamos la ruta del NDK preinstalado de fábrica en el entorno virtual de GitHub Actions
+        NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
+        echo "-> NDK detectado legítimo en: $NDK_PATH"
         
-        echo "-> Desempaquetando el compilador cruzado en el disco duro virtual de GitHub..."
-        unzip -q ndk_host.zip
-        rm -f ndk_host.zip
-        mv android-ndk-r25c android-ndk
+        echo "-> Copiando el compilador cruzado al espacio de trabajo local..."
+        cp -r "$NDK_PATH" ./android-ndk
 
     - name: 🔧 3. Auto-Generar Parches y Archivos de Configuración de Meson
       run: |
@@ -71,7 +71,7 @@ jobs:
 
     - name: 🚀 5. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
-        # Pasamos el NDK real ya descomprimido a la imagen de Docker, rompiendo el bucle del error 9
+        # Pasamos el NDK real ya presente en el sistema a Docker, destruyendo el error 9 de raíz
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
     - name: 📦 6. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
