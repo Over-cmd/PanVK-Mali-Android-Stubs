@@ -22,7 +22,7 @@ RUN apk add --no-cache \
 # Clonar el repositorio real de funnymdzz enfocado en contenedores Android (Mali)
 RUN git clone --depth 1 https://github.com /root/mesa
 
-# Recibimos el Android NDK del sistema preinstalado y los parches desde el flujo YAML
+# Recibimos el Android NDK del sistema preinstalado y los archivos locales de tu raíz
 COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
