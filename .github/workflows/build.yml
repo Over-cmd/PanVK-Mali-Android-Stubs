@@ -15,27 +15,30 @@ jobs:
     steps:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
+      with:
+        path: main_repo
 
-    - name: 🔧 2. Localizar y Vincular Android NDK Preinstalado
+    - name: 📥 2. Clonar Fuentes de funnymdzz via Token Interno Seguro (Bypass Total)
+      uses: actions/checkout@v4
+      with:
+        repository: funnymdzz/mesa
+        ref: main
+        path: mesa
+
+    - name: 🔧 3. Localizar y Vincular Android NDK Preinstalado
       run: |
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
-        cp -r "$NDK_PATH" ./android-ndk
+        # Desplazamos el compilador al espacio de trabajo del contexto de Docker
+        cp -r "$NDK_PATH" ./main_repo/android-ndk
 
-    - name: 📥 3. Descargar Fuentes de funnymdzz via Tarball Stream (Bypass Git 128)
+    - name: 🔧 4. Estructurar Árbol de Trabajo y Mover Fuentes de Mesa
       run: |
-        echo "-> Descargando el código fuente comprimido de funnymdzz/mesa..."
-        # Usamos el stream comprimido tar.gz para evadir por completo los bloqueos del comando git clone
-        curl -L "https://github.com" -o mesa.tar.gz
-        
-        echo "-> Desempaquetando el árbol de desarrollo de Mesa..."
-        mkdir -p ./mesa
-        tar -xzf mesa.tar.gz -C ./mesa --strip-components=1
-        rm -f mesa.tar.gz
+        echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
+        mv ./mesa ./main_repo/mesa
+        cd main_repo
 
-    - name: 🔧 4. Auto-Generar Parches Dinámicos Locales
-      run: |
         echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
         --- a/src/vulkan/util/vk_extensions.py
@@ -65,11 +68,13 @@ jobs:
 
     - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
-        # Invocamos la construcción limpia libre de comandos git internos
+        cd main_repo
+        # Invocamos la construcción limpia. Todos los archivos (Mesa, NDK y parches) están locales en el disco duro
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
     - name: 📦 7. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
       run: |
+        cd main_repo
         echo "-> Extrayendo el controlador del contenedor final..."
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/libvulkan_freedreno.so ./libvulkan_freedreno.so
@@ -99,8 +104,9 @@ jobs:
         echo "===================================================="
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 2-Files en Raíz)..."
-        rm -f ./panvk-mali-bifrost-driver.zip
-        zip -j ./panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
+        rm -f ../panvk-mali-bifrost-driver.zip
+        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
+        cd ..
 
     - name: 📤 8. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
