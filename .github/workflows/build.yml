@@ -53,7 +53,7 @@ jobs:
 
         echo "-> Creando parches para bypass del Linker de Android..."
         cat << 'EOF' > ./android_stub.patch
-        --- a/src/android_stub/cutils_stub.cpp
+        --- b/src/android_stub/cutils_stub.cpp
         +++ b/src/android_stub/cutils_stub.cpp
         @@ -5,6 +5,7 @@
          #include "dlfcn_nougat.h"
@@ -70,7 +70,7 @@ jobs:
         cd main_repo
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 7. Extraer Binario Genuino de Mali y Renombrar para Engañar al APK
+    - name: 📦 7. Extraer Binario Monolítico de Mali y Renombrar para Engañar al APK
       run: |
         cd main_repo
         echo "-> Extrayendo el archivo nativo de Mali del contenedor..."
