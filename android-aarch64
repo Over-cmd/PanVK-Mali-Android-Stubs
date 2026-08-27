@@ -1,8 +1,14 @@
 [binaries]
-c = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
-cpp = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-static-libstdc++']
+c = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang']
+cpp = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang++']
 ar = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
 strip = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+rust = ['rustc', '--target', 'aarch64-linux-android']
+
+[properties]
+c_args = ['-DANDROID']
+cpp_args = ['-DANDROID', '-fno-exceptions', '-static-libstdc++']
+cpp_link_args = ['-static-libstdc++']
 
 [host_machine]
 system = 'android'
