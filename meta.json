@@ -1,10 +1,12 @@
 {
   "schemaVersion": 1,
-  "name": "Mesa PanVK Driver for Mali",
-  "description": "Custom PanVK Vulkan driver for MediaTek forced for Bifrost running on Android 11 con parche de desbordamiento de memoria.",
-  "author": "Mesa Community",
-  "packageVersion": "26.2",
-  "vendor": "Qualcomm",
+  "type": "vulkan",
+  "driver": "turnip",
+  "name": "Mesa Turnip Android Stubs (Bypass)",
+  "description": "Custom Vulkan driver wrapper patched with Nihui Android Stubs",
+  "author": "Mesa Community / Over-cmd",
+  "packageVersion": "24.1.0",
+  "vendor": "Mesa",
   "driverVersion": "1",
   "libraryName": "libvulkan_freedreno.so"
 }
