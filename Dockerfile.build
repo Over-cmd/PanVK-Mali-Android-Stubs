@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y \
 # Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
 RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
 
-# Recibimos las fuentes de Mesa, el Android NDK y los archivos locales desde el flujo YAML
+# Recibimos las fuentes de Mesa, el Android NDK estructurado y los archivos locales desde el flujo YAML
 COPY ./mesa /root/mesa
 COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
@@ -44,7 +44,7 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN MONOLÍTICA REPARADA: Incrustamos todas las funciones dentro del mismo .so
+# CONFIGURACIÓN MONOLÍTICA EFECTIVA: Incrustamos todas las funciones y usamos platforms en plural
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
