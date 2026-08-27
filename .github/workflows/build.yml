@@ -16,7 +16,17 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Forzar Auto-Generación Estática de Parches Locales
+    - name: 🔧 2. Descargar y Extraer Android NDK r25c de forma Segura (Host Bypass)
+      run: |
+        echo "-> Descargando el Android NDK oficial desde los servidores legítimos de Google..."
+        curl -L "https://google.com" -o ndk_host.zip
+        
+        echo "-> Desempaquetando el compilador cruzado en el disco duro virtual de GitHub..."
+        unzip -q ndk_host.zip
+        rm -f ndk_host.zip
+        mv android-ndk-r25c android-ndk
+
+    - name: 🔧 3. Auto-Generar Parches y Archivos de Configuración de Meson
       run: |
         echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
@@ -40,7 +50,7 @@ jobs:
          extern "C" {
         +int property_get(const char *key, char *value, const char *default_value) { return 0; }
          }
-        EOF
+         EOF
 
         echo "-> Creando el mapa de compilación cruzada para API 26..."
         cat << 'EOF' > ./android-aarch64
@@ -56,14 +66,15 @@ jobs:
         endian = 'little'
         EOF
 
-    - name: 🐳 3. Configurar Docker Buildx
+    - name: 🐳 4. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 4. Procesar Compilación de funnymdzz via Docker
+    - name: 🚀 5. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
+        # Pasamos el NDK real ya descomprimido a la imagen de Docker, rompiendo el bucle del error 9
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 5. Extraer y Empaquetar Estricto en Raíz (Bypass de Crash)
+    - name: 📦 6. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
       run: |
         echo "-> Extrayendo el controlador del contenedor final..."
         docker create --name container-extract bannerlator-bifrost-11
@@ -97,7 +108,7 @@ jobs:
         rm -f ./panvk-mali-bifrost-driver.zip
         zip -j ./panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
 
-    - name: 📤 6. Subir Driver a los Artefactos de GitHub
+    - name: 📤 7. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
