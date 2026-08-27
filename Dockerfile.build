@@ -36,18 +36,20 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN SIN GALLIUM: Mantenemos estrictamente el backend de Vulkan de funnymdzz
-# Eliminamos -Dgallium-drivers para evitar el cortocircuito del setup de Meson
+# CONFIGURACIÓN CORREGIDA DEFINITIVA: 
+# Usamos -Dgallium-drivers=none y desactivamos los subcomponentes GLES/GLX de escritorio
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
-       -Dgallium-drivers= \
+       -Dgallium-drivers=none \
        -Dvulkan-drivers=panfrost \
        -Dplatform=android \
        -Dglx=disabled \
        -Degl=disabled \
        -Dgbm=disabled \
+       -Dgles1=disabled \
+       -Dgles2=disabled \
        -Dbuildtype=release \
     && ninja -C build-android
 
