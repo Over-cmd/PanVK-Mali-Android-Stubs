@@ -83,12 +83,12 @@ jobs:
         # Transmutamos libvulkan_panfrost.so real a libvulkan_freedreno.so para burlar la lógica en Java del APK
         mv ./libvulkan_panfrost.so ./libvulkan_freedreno.so
 
-        echo "-> Escribiendo el pasaporte meta.json real para PanVK Autónomo..."
+                echo "-> Escribiendo el pasaporte meta.json de camuflaje Turnip..."
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
           "type": "vulkan",
-          "driver": "panvk",
+          "driver": "turnip",
           "name": "Mesa PanVK Monolithic Driver for Mali (Bifrost)",
           "description": "True PanVK Vulkan autonomous driver compiled from funnymdzz for kbase on API 30",
           "author": "funnymdzz / Over-cmd",
