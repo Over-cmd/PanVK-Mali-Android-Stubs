@@ -53,7 +53,7 @@ jobs:
 
         echo "-> Creando parches para bypass del Linker de Android..."
         cat << 'EOF' > ./android_stub.patch
-        --- a/src/android_stub/cutils_stub.cpp
+        --- b/src/android_stub/cutils_stub.cpp
         +++ b/src/android_stub/cutils_stub.cpp
         @@ -5,6 +5,7 @@
          #include "dlfcn_nougat.h"
