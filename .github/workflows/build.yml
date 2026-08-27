@@ -70,26 +70,25 @@ jobs:
         cd main_repo
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 7. Extraer Binarios Compartidos y Renombrar para Engañar al APK
+    - name: 📦 7. Extraer Binario Monolítico de Mali y Renombrar para Engañar al APK
       run: |
         cd main_repo
-        echo "-> Extrayendo los archivos compartidos del contenedor..."
+        echo "-> Extrayendo el archivo nativo de Mali del contenedor..."
         docker create --name container-extract bannerlator-bifrost-11
         docker cp container-extract:/dist/libvulkan_panfrost.so ./libvulkan_panfrost.so
-        docker cp container-extract:/dist/libglapi.so ./libglapi.so
         docker rm container-extract
 
         echo "-> Ejecutando el truco maestro de renombrado físico..."
         mv ./libvulkan_panfrost.so ./libvulkan_freedreno.so
 
-        echo "-> Escribiendo el pasaporte meta.json real para PanVK Compartido..."
+        echo "-> Escribiendo el pasaporte meta.json real para PanVK Autónomo..."
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
           "type": "vulkan",
           "driver": "panvk",
-          "name": "Mesa PanVK Shared Driver for Mali (Bifrost)",
-          "description": "True PanVK Vulkan + Gallium Shared API compiled from funnymdzz",
+          "name": "Mesa PanVK Monolithic Driver for Mali (Bifrost)",
+          "description": "True PanVK Vulkan autonomous driver compiled from funnymdzz for kbase",
           "author": "funnymdzz / Over-cmd",
           "packageVersion": "26.2",
           "vendor": "Mesa",
@@ -99,15 +98,15 @@ jobs:
         EOF
 
         echo "-> Asegurando permisos nativos de ejecución de Linux (CHMOD 755)..."
-        chmod 755 ./libvulkan_freedreno.so ./libglapi.so ./meta.json
+        chmod 755 ./libvulkan_freedreno.so ./meta.json
 
         echo "=== VERIFICACIÓN CIENTÍFICA: INTEGRIDAD DE ARTEFACTOS ==="
-        ls -lh ./libvulkan_freedreno.so ./libglapi.so ./meta.json || true
+        ls -lh ./libvulkan_freedreno.so ./meta.json || true
         echo "========================================================"
 
-        echo "-> Generando el archivo ZIP plano unificado (Strict 3-Files en Raíz)..."
+        echo "-> Generando el archivo ZIP plano unificado (Strict 2-Files en Raíz)..."
         rm -f ../panvk-mali-bifrost-driver.zip
-        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./libglapi.so ./meta.json
+        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
         cd ..
 
     - name: 📤 8. Subir Driver a los Artefactos de GitHub
