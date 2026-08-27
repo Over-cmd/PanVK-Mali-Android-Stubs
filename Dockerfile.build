@@ -12,23 +12,20 @@ RUN apk add --no-cache \
     ninja \
     python3 \
     py3-mako \
-    git \
     bison \
     flex \
     wayland-dev \
     wayland-protocols \
     pkgconfig
 
-# Clonar el repositorio real de funnymdzz enfocado en contenedores Android (Mali)
-RUN git clone --depth 1 https://github.com /root/mesa
-
-# Recibimos el Android NDK del sistema preinstalado y los archivos locales de tu raíz
+# Recibimos las fuentes de Mesa y el Android NDK ya preparados desde el flujo YAML externo
+COPY ./mesa /root/mesa
 COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Aplicar los parches sobre el árbol de código fuente de funnymdzz e inyectar la ruta física
+# Aplicar los parches sobre el árbol de código fuente e inyectar la ruta física del compilador
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
