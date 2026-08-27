@@ -31,17 +31,16 @@ jobs:
 
         cd driver_workspace
 
-        echo "-> Escribiendo el pasaporte meta.json estándar sin variables de colapso..."
-        # Eliminamos las directivas forzadas que hacían que el driver de Adreno colapsara en tu chip Mali
+        echo "-> Escribiendo el pasaporte meta.json estándar libre de errores..."
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
           "type": "vulkan",
-          "driver": "panvk",
-          "name": "Mesa PanVK Driver for Mali (Bifrost)",
-          "description": "Custom PanVK Vulkan driver patched with Nihui Android Stubs",
+          "driver": "turnip",
+          "name": "Mesa Turnip Android Stubs (Bypass)",
+          "description": "Custom Vulkan driver wrapper patched with Nihui Android Stubs",
           "author": "Mesa Community / Over-cmd",
-          "packageVersion": "26.2",
+          "packageVersion": "24.1.0",
           "vendor": "Mesa",
           "driverVersion": "1",
           "libraryName": "libvulkan_freedreno.so"
@@ -56,7 +55,7 @@ jobs:
         echo "=========================================================="
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 2-Files en Raíz)..."
-        # Empaquetamos libvulkan_freedreno.so y meta.json sueltos de forma estrictamente plana en la raíz
+        # Empaquetamos libvulkan_freedreno.so y meta.json sueltos de forma estrictamente plana en la raíz del ZIP final
         rm -f ../panvk-mali-bifrost-driver.zip
         zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
         cd ..
