@@ -53,7 +53,7 @@ jobs:
 
         echo "-> Creando parches para bypass del Linker de Android..."
         cat << 'EOF' > ./android_stub.patch
-        --- b/src/android_stub/cutils_stub.cpp
+        --- a/src/android_stub/cutils_stub.cpp
         +++ b/src/android_stub/cutils_stub.cpp
         @@ -5,6 +5,7 @@
          #include "dlfcn_nougat.h"
@@ -68,9 +68,10 @@ jobs:
     - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
         cd main_repo
+        # Lanzamos la construcción limpia. El Dockerfile procesará las Host Tools y luego la compilación cruzada
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 7. Extraer Binario Monolítico de Mali y Renombrar para Engañar al APK
+    - name: 📦 7. Extraer Binario Genuino de Mali y Renombrar para Engañar al APK
       run: |
         cd main_repo
         echo "-> Extrayendo el archivo nativo de Mali del contenedor..."
@@ -79,6 +80,7 @@ jobs:
         docker rm container-extract
 
         echo "-> Ejecutando el truco maestro de renombrado físico..."
+        # Transmutamos libvulkan_panfrost.so real a libvulkan_freedreno.so para burlar la lógica en Java del APK
         mv ./libvulkan_panfrost.so ./libvulkan_freedreno.so
 
         echo "-> Escribiendo el pasaporte meta.json real para PanVK Autónomo..."
