@@ -16,57 +16,88 @@ jobs:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
       uses: actions/checkout@v4
 
-    - name: 🔧 2. Forzar Empaquetado Monolítico Seguro (Bypass de Crash)
+    - name: 🔧 2. Forzar Auto-Generación Estática de Parches Locales
       run: |
-        echo "-> Creando espacio de trabajo aislado en el servidor..."
-        mkdir -p driver_workspace
-        
-        echo "-> Verificando la presencia física de tu binario original de 18.22 MB..."
-        if [ -f ./libvulkan_freedreno.so ]; then
-          cp ./libvulkan_freedreno.so ./driver_workspace/libvulkan_freedreno.so
-        else
-          echo "-> ERROR CRÍTICO: No se encontró tu archivo libvulkan_freedreno.so en la raíz."
-          exit 1
-        fi
+        echo "-> Creando extensiones ilimitadas para Vulkan..."
+        cat << 'EOF' > ./extensions.patch
+        --- a/src/vulkan/util/vk_extensions.py
+        +++ b/src/vulkan/util/vk_extensions.py
+        @@ -50,6 +50,7 @@ class Extension:
+             return ext
+         
+             def c_android_condition(self):
+        +        return 'true'
+                 if not self.name.startswith(ANDROID_EXTENSION_WHITELIST_PREFIXES):
+                     return 'true'
+        EOF
 
-        cd driver_workspace
+        echo "-> Creando parches para bypass del Linker de Android..."
+        cat << 'EOF' > ./android_stub.patch
+        --- a/src/android_stub/cutils_stub.cpp
+        +++ b/src/android_stub/cutils_stub.cpp
+        @@ -5,6 +5,7 @@
+         #include "dlfcn_nougat.h"
+         extern "C" {
+        +int property_get(const char *key, char *value, const char *default_value) { return 0; }
+         }
+        EOF
 
-        echo "-> Escribiendo el pasaporte meta.json estándar libre de errores..."
+        echo "-> Creando el mapa de compilación cruzada para API 26..."
+        cat << 'EOF' > ./android-aarch64
+        [binaries]
+        c = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
+        cpp = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-static-libstdc++']
+        ar = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
+        strip = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
+        [host_machine]
+        system = 'android'
+        cpu_family = 'aarch64'
+        cpu = 'armv8-a'
+        endian = 'little'
+        EOF
+
+    - name: 🐳 3. Configurar Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 🚀 4. Procesar Compilación de funnymdzz via Docker
+      run: |
+        docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
+
+    - name: 📦 5. Extraer y Empaquetar Estrictamente 2 Archivos Planos en Raíz
+      run: |
+        echo "-> Extrayendo el controlador del contenedor final..."
+        docker create --name container-extract bannerlator-bifrost-11
+        docker cp container-extract:/dist/libvulkan_freedreno.so ./libvulkan_freedreno.so
+        docker rm container-extract
+
+        echo "-> Escribiendo el pasaporte meta.json real para PanVK..."
         cat << 'EOF' > meta.json
         {
           "schemaVersion": 1,
           "type": "vulkan",
-          "driver": "turnip",
-          "name": "Mesa Turnip Android Stubs (Bypass)",
-          "description": "Custom Vulkan driver wrapper patched with Nihui Android Stubs",
-          "author": "Mesa Community / Over-cmd",
-          "packageVersion": "24.1.0",
+          "driver": "panvk",
+          "name": "Mesa PanVK Driver for Mali (Bifrost)",
+          "description": "True PanVK Vulkan driver compiled from funnymdzz for kbase",
+          "author": "funnymdzz / Over-cmd",
+          "packageVersion": "26.2",
           "vendor": "Mesa",
           "driverVersion": "1",
           "libraryName": "libvulkan_freedreno.so"
         }
         EOF
 
-        echo "-> Validando permisos de lectura y ejecución nativos de Linux (CHMOD 755)..."
+        echo "-> Asegurando permisos nativos de ejecución de Linux (CHMOD 755)..."
         chmod 755 ./libvulkan_freedreno.so ./meta.json
 
-        echo "=== VERIFICACIÓN CIENTÍFICA: TABLA DE ARCHIVOS SUELTOS ==="
-        ls -lh ./
-        echo "=========================================================="
+        echo "=== VERIFICACIÓN DE INTEGRIDAD EN EL REPOSITORIO ==="
+        ls -lh ./libvulkan_freedreno.so ./meta.json || true
+        echo "===================================================="
 
         echo "-> Generando el archivo ZIP plano oficial (Strict 2-Files en Raíz)..."
-        # Empaquetamos libvulkan_freedreno.so y meta.json sueltos de forma estrictamente plana en la raíz del ZIP final
-        rm -f ../panvk-mali-bifrost-driver.zip
-        zip -j ../panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
-        cd ..
+        rm -f ./panvk-mali-bifrost-driver.zip
+        zip -j ./panvk-mali-bifrost-driver.zip ./libvulkan_freedreno.so ./meta.json
 
-    - name: 📦 3. Verificar Integridad del ZIP Final Resultante
-      run: |
-        echo "=== VERIFICACIÓN DEL TAMAÑO TOTAL DEL ZIP ==="
-        ls -lh panvk-mali-bifrost-driver.zip
-        echo "============================================="
-
-    - name: 📤 4. Subir Driver a los Artefactos de GitHub
+    - name: 📤 6. Subir Driver a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-mali-bifrost-driver-zip
