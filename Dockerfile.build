@@ -4,7 +4,7 @@
 FROM alpine:latest AS builder
 WORKDIR /root
 
-# Instalar dependencias nativas esenciales de Alpine
+# Instalar dependencias nativas esenciales de Alpine (incluyendo libdrm-dev)
 RUN apk add --no-cache \
     curl \
     build-base \
@@ -17,7 +17,8 @@ RUN apk add --no-cache \
     flex \
     wayland-dev \
     wayland-protocols \
-    pkgconfig
+    pkgconfig \
+    libdrm-dev
 
 # Recibimos las fuentes de Mesa, el Android NDK y los archivos locales desde el flujo YAML
 COPY ./mesa /root/mesa
@@ -32,15 +33,15 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN LIMPIA: Eliminamos la bandera inválida -Dandroid-stub=true
-# Mantenemos las directivas oficiales de Mesa para forzar la fusión estática de PanVK
+# CONFIGURACIÓN CORREGIDA: Ajustamos las banderas al estándar estricto de Mesa 26
+# Cambiamos platforms a -Dplatform=android y ajustamos los arrays de compilación
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
        -Dgallium-drivers=panfrost \
        -Dvulkan-drivers=panfrost \
-       -Dplatforms=android \
+       -Dplatform=android \
        -Dbuildtype=release \
     && ninja -C build-android
 
