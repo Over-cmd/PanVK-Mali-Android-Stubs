@@ -41,13 +41,18 @@ COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
+# CONFIGURACIÓN DE ENTORNO EN CALIENTE:
+# Mapeamos la ruta interna de LLVM del NDK directamente en el PATH del sistema de Docker.
+# Esto permite que rustc localice los linkers cruzados de API 30 sin colapsar en el sanity check.
+ENV PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
+
 # Aplicar los parches locales e inyectar la ruta física del NDK en el cross-file
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN PURA MALI: Limpiamos la línea de comandos delegando todo al archivo cruzado
+# CONFIGURACIÓN PURA MALI: Ejecutamos el setup con el PATH de Rust perfectamente alineado
 RUN cd /root/mesa \
     && meson setup build-android --cross-file /root/android-aarch64 -Dbuildtype=release \
     && ninja -C build-android
