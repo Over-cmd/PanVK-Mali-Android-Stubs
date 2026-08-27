@@ -7,7 +7,7 @@ WORKDIR /root
 # Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales y herramientas de empaquetado
+# Instalar dependencias esenciales (Eliminamos rustup de APT)
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -23,13 +23,15 @@ RUN apt-get update && apt-get install -y \
     libdrm-dev \
     libxshmfence-dev \
     glslang-tools \
-    rustup \
-    cbindgen \
     && rm -rf /var/lib/apt/lists/*
 
-# Configurar Rustup e integrar de forma permanente las herramientas en el PATH de Docker
-RUN rustup default stable \
-    && rustup target add aarch64-linux-android
+# Instalar Rust de forma nativa mediante el script oficial de Rust-Lang
+RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y \
+    && . "$HOME/.cargo/env" \
+    && rustup target add aarch64-linux-android \
+    && cargo install cbindgen
+
+# Exportar las variables de entorno de Rust de forma global y permanente en Docker
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
