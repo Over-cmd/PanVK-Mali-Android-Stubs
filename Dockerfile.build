@@ -50,13 +50,14 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN MONOLÍTICA REPARADA: Usamos el string nativo compatible de Mesa 26
+# CONFIGURACIÓN MONOLÍTICA DEFINITIVA: Satisface los KMDs de funnymdzz y escapa los arrays
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
-       -Dshared-glapi=true \
-       -Dgallium-drivers=panfrost \
-       -Dvulkan-drivers=panfrost \
+       -Dshared-glapi=false \
+       -Dgallium-drivers="[]" \
+       -Dvulkan-drivers="['panfrost']" \
+       -Dpanfrost-kmds="['kbase']" \
        -Dplatforms=android \
        -Dglx=disabled \
        -Degl=disabled \
