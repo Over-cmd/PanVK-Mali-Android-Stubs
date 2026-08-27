@@ -4,7 +4,7 @@
 FROM alpine:latest AS builder
 WORKDIR /root
 
-# Instalar todas las dependencias necesarias de Alpine nativas
+# Instalar dependencias nativas esenciales de Alpine
 RUN apk add --no-cache \
     curl \
     build-base \
@@ -19,10 +19,10 @@ RUN apk add --no-cache \
     wayland-protocols \
     pkgconfig
 
-# Clonar el repositorio real de funnymdzz enfocado en contenedores Android
+# Clonar el repositorio real de funnymdzz enfocado en contenedores Android (Mali)
 RUN git clone --depth 1 https://github.com /root/mesa
 
-# Recibimos el Android NDK ya desempaquetado y los parches desde el flujo YAML externo
+# Recibimos el Android NDK del sistema preinstalado y los parches desde el flujo YAML
 COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
