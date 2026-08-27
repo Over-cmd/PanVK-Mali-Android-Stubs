@@ -5,7 +5,7 @@ FROM ubuntu:24.04 AS builder
 WORKDIR /root
 ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Instalar dependencias necesarias (Incluyendo LLVM 18 y Clang nativos de Ubuntu 24.04)
+# 1. Instalar dependencias necesarias (Incluyendo LLVM 18 nativo para el Host)
 RUN apt-get update && apt-get install -y \
     curl build-essential meson ninja-build python3 python3-pip python3-mako git \
     bison flex pkg-config libdrm-dev libxshmfence-dev glslang-tools \
@@ -28,30 +28,26 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# 4. FASE 1: Generación de Host Tools nativas (x86_64) - REPARADO CON LLVM ENABLED
-# Activamos LLVM para que el compilador intermedio mesa_clc pueda estructurar el código gráfico
+# 4. FASE 1: Generación de Host Tools nativas (x86_64) - CORE MALI REPARADO
+# Purgamos de raíz los parámetros inexistentes de Turnip que hacían colapsar a Meson.
+# Dejamos únicamente mesa-clc activo con LLVM para fabricar el compilador nativo del Host.
 RUN cd /root/mesa \
     && meson setup build-host \
        -Dplatforms= \
        -Dgallium-drivers=none \
        -Dvulkan-drivers=none \
-       -Dtools=panfrost \
-       -Dprecomp-compiler=enabled \
-       -Dinstall-precomp-compiler=true \
        -Dllvm=enabled \
        -Dmesa-clc=enabled \
-       -Dinstall-mesa-clc=true \
-    && ninja -C build-host src/compiler/clc/mesa_clc \
-       src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
+    && ninja -C build-host src/compiler/clc/mesa_clc
 
 # 5. Configurar PATH y variables para compilación cruzada móviles
-ENV PATH="/root/mesa/build-host/src/compiler/clc:/root/mesa/build-host/src/compiler/spirv:/root/mesa/build-host/src/panfrost/clc:${PATH}"
+ENV PATH="/root/mesa/build-host/src/compiler/clc:${PATH}"
 ENV NDK_PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
 ENV PATH="${NDK_PATH}:${PATH}"
 ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${NDK_PATH}/aarch64-linux-android30-clang"
 ENV RUSTFLAGS="-C linker=${CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER}"
 
-# 6. FASE 2: Compilación Cruzada para Android ARM64 (Aquí sí se apaga LLVM para el móvil)
+# 6. FASE 2: Compilación Cruzada para Android ARM64
 RUN cd /root/mesa \
     && meson setup build-android --cross-file /root/android-aarch64 \
        -Dbuildtype=release \
@@ -65,7 +61,6 @@ RUN cd /root/mesa \
        -Dopengl=false \
        -Dgallium-drivers=none \
        -Dmesa-clc=system \
-       -Dprecomp-compiler=system \
        -Dvulkan-drivers=panfrost \
        -Dpanfrost-kmds=kbase,panthor \
     && ninja -C build-android
