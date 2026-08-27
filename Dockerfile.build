@@ -58,14 +58,16 @@ RUN cd /root/mesa \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
 # =========================================================================
-# PASO MAESTRO 1: Compilar de forma Nativa las herramientas de compilación de Shaders (mesa-clc)
+# PASO MAESTRO 1: Compilar únicamente herramientas de compilación de Shaders (modo puro compile-tools)
 # =========================================================================
 RUN cd /root/mesa \
     && meson setup build-native \
        -Dgallium-drivers=none \
        -Dvulkan-drivers=none \
-       -Dplatforms=x11 \
-       -Dbuild-aco-tests=false \
+       -Dglx=disabled \
+       -Degl=disabled \
+       -Dgbm=disabled \
+       -Dbuild-compile-tools=true \
     && ninja -C build-native src/compiler/clc/mesa_clc
 
 # =========================================================================
