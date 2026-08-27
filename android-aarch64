@@ -18,8 +18,6 @@ platforms = ['android']
 glx = 'disabled'
 egl = 'disabled'
 gbm = 'disabled'
-gles1 = 'disabled'
-gles2 = 'disabled'
 
 [host_machine]
 system = 'android'
