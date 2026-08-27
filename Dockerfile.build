@@ -7,7 +7,7 @@ WORKDIR /root
 # Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales y el ecosistema de Rust necesario para KRAID/PanVK
+# Instalar dependencias esenciales y el ecosistema de Rust base
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -23,10 +23,14 @@ RUN apt-get update && apt-get install -y \
     libdrm-dev \
     libxshmfence-dev \
     glslang-tools \
-    rustc \
-    cargo \
+    rustup \
     cbindgen \
     && rm -rf /var/lib/apt/lists/*
+
+# Configurar el compilador de Rust oficial e inyectar de forma obligatoria el target de Android ARM64
+# Esto evita que Meson aborte al validar las propiedades cruzadas de Rustc
+RUN rustup default stable \
+    && rustup target add aarch64-linux-android
 
 # Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
 RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
@@ -44,7 +48,7 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN MONOLÍTICA EFECTIVA: Desactivamos Gallium con [] y forzamos panfrost en Vulkan drivers
+# CONFIGURACIÓN MONOLÍTICA COMPLETA: Meson validará Clang y Rustc cruzados perfectamente
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
