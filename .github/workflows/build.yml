@@ -30,7 +30,6 @@ jobs:
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
-        # Desplazamos el compilador al espacio de trabajo del contexto de Docker
         cp -r "$NDK_PATH" ./main_repo/android-ndk
 
     - name: 🔧 4. Estructurar Árbol de Trabajo y Mover Fuentes de Mesa
@@ -69,7 +68,6 @@ jobs:
     - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
         cd main_repo
-        # Invocamos la construcción limpia. Todos los archivos (Mesa, NDK y parches) están locales en el disco duro
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
     - name: 📦 7. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
