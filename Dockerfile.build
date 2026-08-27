@@ -7,7 +7,7 @@ WORKDIR /root
 # Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales (Añadimos python3-cbindgen / pip)
+# Instalar dependencias esenciales completas del sistema host
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -23,14 +23,14 @@ RUN apt-get update && apt-get install -y \
     libdrm-dev \
     libxshmfence-dev \
     glslang-tools \
+    rustup \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar cbindgen de forma instantánea vía Pip (Evita compilarlo por horas en Cargo)
+# Instalar cbindgen de forma instantánea vía Pip para ahorrar tiempo de CPU
 RUN pip3 install --break-system-packages cbindgen || pip3 install cbindgen || true
 
-# Instalar Rust de forma nativa mediante el script oficial ejecutable de Rust-Lang
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    && . "$HOME/.cargo/env" \
+# Configurar el compilador de Rust oficial e inyectar de forma obligatoria el target de Android ARM64
+RUN rustup default stable \
     && rustup target add aarch64-linux-android
 
 # Exportar las variables de entorno de Rust de forma global y permanente en Docker
@@ -57,7 +57,21 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN MONOLÍTICA EXTREMADAMENTE LIMPIA:
+# =========================================================================
+# PASO MAESTRO 1: Compilar de forma Nativa las herramientas de compilación de Shaders (mesa-clc)
+# =========================================================================
+RUN cd /root/mesa \
+    && meson setup build-native \
+       -Dgallium-drivers=none \
+       -Dvulkan-drivers=none \
+       -Dplatforms=x11 \
+       -Dbuild-aco-tests=false \
+    && ninja -C build-native src/compiler/clc/mesa_clc
+
+# =========================================================================
+# PASO MAESTRO 2: Ejecutar la Compilación Cruzada real para Android kbase
+# Apuntamos a la ruta de mesa_clc nativa para que valide la sanidad de inmediato
+# =========================================================================
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
@@ -73,6 +87,7 @@ RUN cd /root/mesa \
        -Dgbm=disabled \
        -Dgles1=disabled \
        -Dgles2=disabled \
+       -Dmesa-clc=/root/mesa/build-native/src/compiler/clc/mesa_clc \
     && ninja -C build-android
 
 # =========================================================================
