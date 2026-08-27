@@ -7,7 +7,7 @@ WORKDIR /root
 # Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales y el ecosistema de Rust necesario para KRAID (PanVK)
+# Instalar dependencias esenciales y el ecosistema de Rust necesario para KRAID/PanVK
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     cbindgen \
     && rm -rf /var/lib/apt/lists/*
 
-# Truco maestro de Ubuntu: Mapeamos glslangValidator para que Meson lo detecte al instante
+# Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
 RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
 
 # Recibimos las fuentes de Mesa, el Android NDK y los archivos locales desde el flujo YAML
@@ -44,13 +44,13 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# Configurar y compilar Mesa enfocándose puramente en Vulkan PanVK de funnymdzz
+# CORRECCIÓN TÉCNICA DEFINITIVA: Cambiamos panfrost por panvk en vulkan-drivers
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
        -Dgallium-drivers=none \
-       -Dvulkan-drivers=panfrost \
+       -Dvulkan-drivers=panvk \
        -Dplatform=android \
        -Dglx=disabled \
        -Degl=disabled \
@@ -66,5 +66,5 @@ RUN cd /root/mesa \
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
 
-# Buscamos el binario final de forma segura usando comodines de compilación de Meson
+# Buscamos el binario de forma segura en la ruta de compilación real de PanVK
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
