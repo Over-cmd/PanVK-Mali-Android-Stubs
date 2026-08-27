@@ -1,27 +1,32 @@
 # =========================================================================
 # STAGE 1: Entorno de Compilación Cruzada con funnymdzz (Mali kbase)
 # =========================================================================
-FROM alpine:latest AS builder
+FROM ubuntu:24.04 AS builder
 WORKDIR /root
 
-# Instalar TODO el ecosistema de dependencias de compilación para Mesa 26 / PanVK
-RUN apk add --no-cache \
+# Evitar diálogos interactivos durante la instalación de paquetes
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias esenciales y el ecosistema de Rust necesario para KRAID (PanVK)
+RUN apt-get update && apt-get install -y \
     curl \
-    build-base \
+    build-essential \
     meson \
-    ninja \
+    ninja-build \
     python3 \
-    python3-dev \
-    py3-mako \
+    python3-pip \
+    python3-mako \
     git \
     bison \
     flex \
-    wayland-dev \
-    wayland-protocols \
-    pkgconfig \
+    pkg-config \
     libdrm-dev \
     libxshmfence-dev \
-    glslang
+    glslang-tools \
+    rustc \
+    cargo \
+    cbindgen \
+    && rm -rf /var/lib/apt/lists/*
 
 # Recibimos las fuentes de Mesa, el Android NDK y los archivos locales desde el flujo YAML
 COPY ./mesa /root/mesa
@@ -55,8 +60,8 @@ RUN cd /root/mesa \
 # =========================================================================
 # STAGE 2: Conservación del Archivo Real de Mali para la Extracción
 # =========================================================================
-FROM alpine:latest AS final
+FROM ubuntu:24.04 AS final
 WORKDIR /dist
 
-# CORRECCIÓN FATAL: Conservamos el binario real de Mali con su nombre original de compilación
+# Buscamos el binario final de forma segura usando comodines de compilación de Meson
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
