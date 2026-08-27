@@ -6,9 +6,20 @@ strip = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
 rust = ['rustc', '--target', 'aarch64-linux-android']
 
 [properties]
-c_args = ['-DANDROID', '--sysroot=NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot']
-cpp_args = ['-DANDROID', '--sysroot=NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-fno-exceptions', '-static-libstdc++']
-cpp_link_args = ['--sysroot=NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/sysroot', '-static-libstdc++']
+c_args = ['-DANDROID']
+cpp_args = ['-DANDROID', '-fno-exceptions', '-static-libstdc++']
+cpp_link_args = ['-static-libstdc++']
+
+[project options]
+shared-glapi = false
+gallium-drivers = ['panfrost']
+vulkan-drivers = ['panfrost']
+platforms = ['android']
+glx = 'disabled'
+egl = 'disabled'
+gbm = 'disabled'
+gles1 = 'disabled'
+gles2 = 'disabled'
 
 [host_machine]
 system = 'android'
