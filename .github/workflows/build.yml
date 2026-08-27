@@ -23,7 +23,7 @@ jobs:
         echo "-> NDK detectado legítimo en: $NDK_PATH"
         cp -r "$NDK_PATH" ./android-ndk
 
-    - name: 🔧 3. Auto-Generar Parches y Archivos de Configuración de Meson
+    - name: 🔧 3. Auto-Generar Parches Dinámicos Locales
       run: |
         echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
@@ -49,25 +49,12 @@ jobs:
          }
          EOF
 
-        echo "-> Creando el mapa de compilación cruzada para API 26..."
-        cat << 'EOF' > ./android-aarch64
-        [binaries]
-        c = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
-        cpp = ['ccache', 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-static-libstdc++']
-        ar = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
-        strip = 'NDKDIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip'
-        [host_machine]
-        system = 'android'
-        cpu_family = 'aarch64'
-        cpu = 'armv8-a'
-        endian = 'little'
-        EOF
-
     - name: 🐳 4. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
     - name: 🚀 5. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
       run: |
+        # Invocamos la construcción. Al existir android-aarch64 físicamente en tu raíz, pasará de largo
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
     - name: 📦 6. Extraer Binario de funnymdzz y Empaquetar en Raíz Estricto
