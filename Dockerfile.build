@@ -1,80 +1,62 @@
 # =========================================================================
-# STAGE 1: Entorno de Compilación Cruzada con funnymdzz (Mali kbase)
+# STAGE 1: Entorno de Compilación y Generación de Herramientas del Host
 # =========================================================================
 FROM ubuntu:24.04 AS builder
 WORKDIR /root
-
-# Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales y el ecosistema de Rust base
+# 1. Instalar dependencias necesarias
 RUN apt-get update && apt-get install -y \
-    curl \
-    build-essential \
-    meson \
-    ninja-build \
-    python3 \
-    python3-pip \
-    python3-mako \
-    git \
-    bison \
-    flex \
-    pkg-config \
-    libdrm-dev \
-    libxshmfence-dev \
-    glslang-tools \
-    rustup \
-    cbindgen \
+    curl build-essential meson ninja-build python3 python3-mako git \
+    bison flex pkg-config libdrm-dev libxshmfence-dev glslang-tools \
+    rustup llvm-dev libclang-dev libelf-dev spirv-tools gettext \
     && rm -rf /var/lib/apt/lists/*
 
-# Configurar el compilador de Rust oficial e inyectar de forma obligatoria el target de Android ARM64
-RUN rustup default stable \
-    && rustup target add aarch64-linux-android
-
-# Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
+# 2. Configurar Rust y target móvil
+RUN rustup default stable && rustup target add aarch64-linux-android
 RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
 
-# Recibimos las fuentes de Mesa, el Android NDK intacto y los archivos locales desde el flujo YAML
+# 3. Copiar fuentes y aplicar parches
 COPY ./mesa /root/mesa
 COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# CONFIGURACIÓN DE ENTORNO EN CALIENTE PARA CLANG Y RUST:
-ENV PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
-ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
-ENV RUSTFLAGS="-C linker=/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
-
-# Aplicar los parches locales e inyectar la ruta física del NDK en el cross-file
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN COMPLEMENTARIA DEFINITIVA:
-# Pasamos las banderas de arrays limpias usando comillas simples protegidas por el shell.
-# Desactivamos Gallium con 'none' y forzamos panfrost en los controladores de Vulkan de Mesa.
+# 4. FASE 1: Generación de Host Tools nativas (x86_64)
 RUN cd /root/mesa \
-    && meson setup build-android \
-       --cross-file /root/android-aarch64 \
-       -Dbuildtype=release \
-       -Dshared-glapi=false \
-       -Dgallium-drivers=none \
-       -Dvulkan-drivers=panfrost \
-       -Dplatforms=android \
-       -Dglx=disabled \
-       -Degl=disabled \
-       -Dgbm=disabled \
-       -Dgles1=disabled \
-       -Dgles2=disabled \
+    && meson setup build-host -Dplatforms="[]" -Dgallium-drivers="[]" \
+       -Dvulkan-drivers="[]" -Dtools=panfrost -Dprecomp-compiler=enabled \
+       -Dinstall-precomp-compiler=true -Dllvm=disabled -Dmesa-clc=enabled \
+       -Dinstall-mesa-clc=true \
+    && ninja -C build-host src/compiler/clc/mesa_clc \
+       src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
+
+# 5. Configurar PATH y variables para compilación cruzada
+ENV PATH="/root/mesa/build-host/src/compiler/clc:/root/mesa/build-host/src/compiler/spirv:/root/mesa/build-host/src/panfrost/clc:${PATH}"
+ENV NDK_PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
+ENV PATH="${NDK_PATH}:${PATH}"
+ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${NDK_PATH}/aarch64-linux-android30-clang"
+ENV RUSTFLAGS="-C linker=${CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER}"
+
+# 6. FASE 2: Compilación Cruzada para Android ARM64
+RUN cd /root/mesa \
+    && meson setup build-android --cross-file /root/android-aarch64 \
+       -Dbuildtype=release -Dshared-glapi=false -Dplatforms=android,x11 \
+       -Dandroid-stub=true -Dplatform-sdk-version=30 \
+       -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false \
+       -Dgallium-drivers="[]" -Dmesa-clc=system -Dprecomp-compiler=system \
+       -Dvulkan-drivers="['panfrost']" -Dpanfrost-kmds=kbase,panthor \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Conservación del Archivo Real Monolítico para la Extracción
+# STAGE 2: Extracción final
 # =========================================================================
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
-
-# Conservamos el binario real compilado de Mali con su nombre original
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
