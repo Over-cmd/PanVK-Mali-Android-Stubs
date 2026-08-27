@@ -63,7 +63,7 @@ jobs:
       run: |
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 5. Extraer y Empaquetar Estrictamente 2 Archivos Planos en Raíz
+    - name: 📦 5. Extraer y Empaquetar Estricto en Raíz (Bypass de Crash)
       run: |
         echo "-> Extrayendo el controlador del contenedor final..."
         docker create --name container-extract bannerlator-bifrost-11
