@@ -25,20 +25,15 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Localizar y Estructurar Android NDK para Rutas Cortas (Bypass Bin)
+    - name: 🔧 3. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
       run: |
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
         
-        echo "-> Creando estructura aplanada para que coincida con NDKDIR/bin/..."
-        mkdir -p ./main_repo/android-ndk/bin
-        
-        # Copiamos los binarios lógicos de LLVM/Clang directamente a la raíz bin de forma plana
-        cp -r $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/bin/* ./main_repo/android-ndk/bin/
-        
-        # Copiamos los sysroots obligatorios para que Clang localice las cabeceras de Android
-        cp -r $NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64/sysroot ./main_repo/android-ndk/sysroot
+        echo "-> Copiando el árbol completo del NDK sin alterar su jerarquía de archivos..."
+        # Copiamos la estructura completa original de fábrica para que Clang no pierda el sysroot ni los .o
+        cp -r "$NDK_PATH" ./main_repo/android-ndk
 
     - name: 🔧 4. Estructurar Árbol de Trabajo y Mover Fuentes de Mesa
       run: |
