@@ -44,12 +44,12 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CORRECCIÓN TÉCNICA DEFINITIVA: Cambiamos panfrost por panvk en vulkan-drivers
+# CONFIGURACIÓN COMPARTIDA: Activamos shared-glapi y enlazamos panfrost con panvk
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
-       -Dshared-glapi=false \
-       -Dgallium-drivers=none \
+       -Dshared-glapi=true \
+       -Dgallium-drivers=panfrost \
        -Dvulkan-drivers=panvk \
        -Dplatform=android \
        -Dglx=disabled \
@@ -61,10 +61,11 @@ RUN cd /root/mesa \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Conservación del Archivo Real de Mali para la Extracción
+# STAGE 2: Conservación de los Archivos Compartidos para la Extracción
 # =========================================================================
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
 
-# Buscamos el binario de forma segura en la ruta de compilación real de PanVK
+# Copiamos tanto el driver Vulkan de Mali como la API compartida generada por Meson
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
+COPY --from=builder /root/mesa/build-android/src/mapi/shared-glapi/libglapi.so ./libglapi.so
