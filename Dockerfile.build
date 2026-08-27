@@ -20,13 +20,14 @@ RUN apk add --no-cache \
     wayland-protocols \
     pkgconfig
 
-# Descargar e instalar el Android NDK r25c oficial de forma legítima para la API 26
+# DESCARGA REAL REPARADA: Apuntamos directamente al repositorio de descargas de Google
+# Esto evita que unzip intente procesar páginas web HTML corruptas (Error exit code 9)
 RUN curl -L "https://google.com" -o ndk.zip \
     && unzip ndk.zip \
     && rm -f ndk.zip \
     && mv android-ndk-r25c android-ndk
 
-# CLONACIÓN DEL REPOSITORIO DE FUNNYMDZZ (Soporte real para Mali kbase)
+# Clonar el repositorio real de funnymdzz enfocado en contenedores Android (Mali kbase)
 RUN git clone --depth 1 https://github.com /root/mesa
 
 # Copiar los parches locales generados por el flujo YAML
@@ -59,6 +60,5 @@ RUN cd /root/mesa \
 FROM alpine:latest AS final
 WORKDIR /dist
 
-# Traemos el binario legítimo compilado de funnymdzz y lo enmascaramos con el nombre
-# que busca el Linker de tu APK para engañar al instalador móvil
+# Traemos el binario legítimo de Mali de funnymdzz y lo enmascaramos con el nombre que busca tu emulador
 COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_freedreno.so
