@@ -12,35 +12,36 @@ RUN apk add --no-cache \
     ninja \
     python3 \
     py3-mako \
+    git \
     bison \
     flex \
     wayland-dev \
     wayland-protocols \
     pkgconfig
 
-# Recibimos las fuentes de Mesa y el Android NDK ya preparados desde el flujo YAML externo
+# Recibimos las fuentes de Mesa, el Android NDK y los archivos locales desde el flujo YAML
 COPY ./mesa /root/mesa
 COPY ./android-ndk /root/android-ndk
 COPY ./extensions.patch /root/extensions.patch
 COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
-# Aplicar los parches sobre el árbol de código fuente e inyectar la ruta física del compilador
+# Aplicar los parches e inyectar la ruta física del compilador en el archivo cruzado
 RUN cd /root/mesa \
     && patch -p1 < /root/extensions.patch || true \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# Configurar y compilar Mesa en modo Monolítico Estático para Bifrost (Mali-G52)
+# CONFIGURACIÓN LIMPIA: Eliminamos la bandera inválida -Dandroid-stub=true
+# Mantenemos las directivas oficiales de Mesa para forzar la fusión estática de PanVK
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
-       -Dgallium-drivers=[panfrost] \
-       -Dvulkan-drivers=[panfrost] \
-       -Dplatform=android \
+       -Dgallium-drivers=panfrost \
+       -Dvulkan-drivers=panfrost \
+       -Dplatforms=android \
        -Dbuildtype=release \
-       -Dandroid-stub=true \
     && ninja -C build-android
 
 # =========================================================================
