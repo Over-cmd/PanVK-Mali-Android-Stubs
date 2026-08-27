@@ -7,7 +7,7 @@ WORKDIR /root
 # Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales y el ecosistema de Rust base
+# Instalar dependencias esenciales y herramientas de empaquetado
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -27,10 +27,10 @@ RUN apt-get update && apt-get install -y \
     cbindgen \
     && rm -rf /var/lib/apt/lists/*
 
-# Configurar el compilador de Rust oficial e inyectar de forma obligatoria el target de Android ARM64
-# Esto evita que Meson aborte al validar las propiedades cruzadas de Rustc
+# Configurar Rustup e integrar de forma permanente las herramientas en el PATH de Docker
 RUN rustup default stable \
     && rustup target add aarch64-linux-android
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
 RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
@@ -48,13 +48,13 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# BLINDAJE DE SHELL: Escapamos los corchetes con comillas dobles para congelar el globbing de /bin/sh
+# BLINDAJE DE SHELL Y RUST: Aseguramos el PATH visible y el driver panvk nativo
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
        -Dgallium-drivers="[]" \
-       -Dvulkan-drivers="['panfrost']" \
+       -Dvulkan-drivers="['panvk']" \
        -Dplatforms=android \
        -Dglx=disabled \
        -Degl=disabled \
