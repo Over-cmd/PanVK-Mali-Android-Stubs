@@ -48,13 +48,13 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN MONOLÍTICA COMPLETA: Meson validará Clang y Rustc cruzados perfectamente
+# BLINDAJE DE SHELL: Escapamos los corchetes con comillas dobles para congelar el globbing de /bin/sh
 RUN cd /root/mesa \
     && meson setup build-android \
        --cross-file /root/android-aarch64 \
        -Dshared-glapi=false \
-       -Dgallium-drivers=[] \
-       -Dvulkan-drivers=[panfrost] \
+       -Dgallium-drivers="[]" \
+       -Dvulkan-drivers="['panfrost']" \
        -Dplatforms=android \
        -Dglx=disabled \
        -Degl=disabled \
