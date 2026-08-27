@@ -42,11 +42,7 @@ COPY ./android_stub.patch /root/android_stub.patch
 COPY ./android-aarch64 /root/android-aarch64
 
 # CONFIGURACIÓN DE ENTORNO EN CALIENTE PARA CLANG Y RUST:
-# Mapeamos la ruta interna de LLVM del NDK directamente en el PATH del sistema de Docker.
 ENV PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
-
-# INYECCIÓN CRÍTICA DE ENLAZADOR DE RUST:
-# Le indicamos a Rust qué binario de Clang exacto debe usar como Linker de destino para compilar en ARM64
 ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
 ENV RUSTFLAGS="-C linker=/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
 
@@ -56,13 +52,26 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# CONFIGURACIÓN PURA MALI: Ejecutamos el setup con las variables de Rust perfectamente alineadas
+# CONFIGURACIÓN COMPLEMENTARIA DEFINITIVA:
+# Pasamos las banderas de arrays limpias usando comillas simples protegidas por el shell.
+# Desactivamos Gallium con 'none' y forzamos panfrost en los controladores de Vulkan de Mesa.
 RUN cd /root/mesa \
-    && meson setup build-android --cross-file /root/android-aarch64 -Dbuildtype=release \
+    && meson setup build-android \
+       --cross-file /root/android-aarch64 \
+       -Dbuildtype=release \
+       -Dshared-glapi=false \
+       -Dgallium-drivers=none \
+       -Dvulkan-drivers=panfrost \
+       -Dplatforms=android \
+       -Dglx=disabled \
+       -Degl=disabled \
+       -Dgbm=disabled \
+       -Dgles1=disabled \
+       -Dgles2=disabled \
     && ninja -C build-android
 
 # =========================================================================
-# STAGE 2: Conservación del Archivo Real de Mali para la Extracción
+# STAGE 2: Conservación del Archivo Real Monolítico para la Extracción
 # =========================================================================
 FROM ubuntu:24.04 AS final
 WORKDIR /dist
