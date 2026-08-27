@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # 1. Instalar dependencias necesarias
 RUN apt-get update && apt-get install -y \
-    curl build-essential meson ninja-build python3 python3-mako git \
+    curl build-essential meson ninja-build python3 python3-pip python3-mako git \
     bison flex pkg-config libdrm-dev libxshmfence-dev glslang-tools \
     rustup llvm-dev libclang-dev libelf-dev spirv-tools gettext \
     && rm -rf /var/lib/apt/lists/*
@@ -28,11 +28,17 @@ RUN cd /root/mesa \
     && patch -p1 < /root/android_stub.patch || true \
     && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
 
-# 4. FASE 1: Generación de Host Tools nativas (x86_64)
+# 4. FASE 1: Generación de Host Tools nativas (x86_64) sin caracteres de escape corruptos
 RUN cd /root/mesa \
-    && meson setup build-host -Dplatforms="[]" -Dgallium-drivers="[]" \
-       -Dvulkan-drivers="[]" -Dtools=panfrost -Dprecomp-compiler=enabled \
-       -Dinstall-precomp-compiler=true -Dllvm=disabled -Dmesa-clc=enabled \
+    && meson setup build-host \
+       -Dplatforms= \
+       -Dgallium-drivers=none \
+       -Dvulkan-drivers=none \
+       -Dtools=panfrost \
+       -Dprecomp-compiler=enabled \
+       -Dinstall-precomp-compiler=true \
+       -Dllvm=disabled \
+       -Dmesa-clc=enabled \
        -Dinstall-mesa-clc=true \
     && ninja -C build-host src/compiler/clc/mesa_clc \
        src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
@@ -44,14 +50,23 @@ ENV PATH="${NDK_PATH}:${PATH}"
 ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${NDK_PATH}/aarch64-linux-android30-clang"
 ENV RUSTFLAGS="-C linker=${CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER}"
 
-# 6. FASE 2: Compilación Cruzada para Android ARM64
+# 6. FASE 2: Compilación Cruzada para Android ARM64 con sintaxis limpia
 RUN cd /root/mesa \
     && meson setup build-android --cross-file /root/android-aarch64 \
-       -Dbuildtype=release -Dshared-glapi=false -Dplatforms=android,x11 \
-       -Dandroid-stub=true -Dplatform-sdk-version=30 \
-       -Dglx=disabled -Dgbm=disabled -Degl=disabled -Dopengl=false \
-       -Dgallium-drivers="[]" -Dmesa-clc=system -Dprecomp-compiler=system \
-       -Dvulkan-drivers="['panfrost']" -Dpanfrost-kmds=kbase,panthor \
+       -Dbuildtype=release \
+       -Dshared-glapi=false \
+       -Dplatforms=android,x11 \
+       -Dandroid-stub=true \
+       -Dplatform-sdk-version=30 \
+       -Dglx=disabled \
+       -Dgbm=disabled \
+       -Degl=disabled \
+       -Dopengl=false \
+       -Dgallium-drivers=none \
+       -Dmesa-clc=system \
+       -Dprecomp-compiler=system \
+       -Dvulkan-drivers=panfrost \
+       -Dpanfrost-kmds=kbase,panthor \
     && ninja -C build-android
 
 # =========================================================================
