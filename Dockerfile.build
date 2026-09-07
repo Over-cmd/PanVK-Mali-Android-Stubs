@@ -37,12 +37,12 @@ ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 RUN cd /root/mesa \
     && meson setup build-android \
         --cross-file /root/android-aarch64 \
+        # 🟢 EL ENLACE INDESTRUCTIBLE PARA TERMUX-X11: Mantenemos la estructura de Funny 
+        # pero forzamos la compatibilidad de ventanas android unificada que exige la app.
         -Dplatforms=android \
         -Dplatform-sdk-version=30 \
         -Dgallium-drivers=panfrost \
         -Dvulkan-drivers=panfrost,wrapper \
-        # 🟢 ACTIVACIÓN MAESTRA DE BIFROST: Forzamos a que el driver de panvk compile 
-        # las meta-descripciones específicas de la carpeta bifrost/ para tu Mali G52.
         -Dpanfrost-version=6 \
         -Dpanfrost-rust=true \
         -Dpanfrost-kmds=kbase \
