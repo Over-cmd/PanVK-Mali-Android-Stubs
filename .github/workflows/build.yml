@@ -25,17 +25,18 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Suite XCB Completa, Cabeceras Clang 18, Wayland y Forzar Meson Moderno
+    - name: 🔧 3. Instalar Suite XCB Completa, Present Extensions, Wayland y Forzar Meson Moderno
       run: |
         sudo apt-get update
-        # 🟢 INYECCIÓN MAESTRA REFORZADA: Agregamos absolutamente todos los componentes de desarrollo 
-        # de XCB (randr, xfixes, dri2, shm, keysyms) y X11 del host para blindar el escaneo contra cualquier error.
+        # 🟢 INYECCIÓN MAESTRA REFORZADA TOTAL: Agregamos libxcb-present-dev, libxcb-sync-dev, libxcb-xinerama0-dev 
+        # y las dependencias de cercado de memoria de Linux para blindar el escaneo contra la linea 2352 de Funny.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
           gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
           rustc cargo python3-pip zip libwayland-dev wayland-protocols \
           libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
           libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
-          libxrandr-dev libxshmfence-dev libxrender-dev libxext-dev libx11-dev x11proto-dev
+          libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
+          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev
 
         sudo pip3 install --break-system-packages --upgrade meson
         
@@ -103,7 +104,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v171)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v172)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
