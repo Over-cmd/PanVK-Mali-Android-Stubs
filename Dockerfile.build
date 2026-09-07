@@ -39,11 +39,12 @@ RUN cd /root/mesa \
         --cross-file /root/android-aarch64 \
         -Dplatforms=android \
         -Dplatform-sdk-version=30 \
-        -Dgallium-drivers=panfrost \
-        # 🟢 PARCHE DE COORDENADA: Eliminamos el ",wrapper" fantasma que Funny borró del repo
+        # 🟢 CORRECCIÓN SUPREMA DE FLAGS: Apagamos gallium-drivers dejándolo vacío
+        # y removemos panfrost-rust manual para que el arbol minimalista de Funny 
+        # compile Vulkan puro sin buscar librerías DRM de escritorio muertas.
+        -Dgallium-drivers= \
         -Dvulkan-drivers=panfrost \
         -Dpanfrost-version=6 \
-        -Dpanfrost-rust=true \
         -Dpanfrost-kmds=kbase \
         -Dbuild-compile-tools=false \
         -Dexternal-mesa-clc=/root/native_tools/mesa_clc \
