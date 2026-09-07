@@ -25,18 +25,19 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang 18, libclc y Forzar Meson Moderno
+    - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang 18, libclc, LLVMSPIRVLib y Forzar Meson Moderno
       run: |
         sudo apt-get update
-        # 🟢 INYECCIÓN MAESTRA DEFINITIVA: Agregamos libclc-18-dev para proveer de forma nativa
-        # los archivos .pc de OpenCL que Meson exige estrictamente en la linea 1001 para el driver Panfrost.
+        # 🟢 INYECCIÓN MAESTRA DEFINITIVA: Agregamos libllvm-spirv-18-dev y llvm-spirv-18 para proveer de forma nativa
+        # la dependencia LLVMSPIRVLib que Meson exige estrictamente en la linea 2090 del arbol de Funny.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
           gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
           rustc cargo python3-pip zip libwayland-dev wayland-protocols \
           libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
           libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
           libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
-          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev libclc-18-dev
+          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev libclc-18-dev \
+          libllvm-spirv-18-dev llvm-spirv-18
 
         sudo pip3 install --break-system-packages --upgrade meson
         
@@ -49,7 +50,7 @@ jobs:
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # Setup con Panfrost activo para despertar a mesa_clc, ahora protegido con libclc-18-dev
+        # Setup con Panfrost activo, ahora protegido con libclc y libllvm-spirv-18-dev
         meson setup build-host -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         
         # Invocamos la forja del compilador de shaders nativo x86_64
@@ -108,7 +109,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v175)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v176)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
