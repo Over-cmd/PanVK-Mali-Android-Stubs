@@ -1,5 +1,5 @@
 # ==============================================================================
-# UN SOLO PASO BLINDADO: Compilación Cruzada Limpia para Android ARM64 Bifrost
+# UN SOLO PASO BLINDADO: Compilación Cruzada Limpia para Android ARM64 Bifrost v6
 # ==============================================================================
 FROM ubuntu:24.04
 
@@ -37,12 +37,11 @@ ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 RUN cd /root/mesa \
     && meson setup build-android \
         --cross-file /root/android-aarch64 \
-        # 🟢 EL ENLACE INDESTRUCTIBLE PARA TERMUX-X11: Mantenemos la estructura de Funny 
-        # pero forzamos la compatibilidad de ventanas android unificada que exige la app.
         -Dplatforms=android \
         -Dplatform-sdk-version=30 \
         -Dgallium-drivers=panfrost \
-        -Dvulkan-drivers=panfrost,wrapper \
+        # 🟢 PARCHE DE COORDENADA: Eliminamos el ",wrapper" fantasma que Funny borró del repo
+        -Dvulkan-drivers=panfrost \
         -Dpanfrost-version=6 \
         -Dpanfrost-rust=true \
         -Dpanfrost-kmds=kbase \
