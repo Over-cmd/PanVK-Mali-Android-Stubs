@@ -42,7 +42,6 @@ jobs:
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # Configuración elástica pura para el Mesa de Funny sin módulos invasivos
         meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         ninja -C build-host src/compiler/clc/mesa_clc
         
