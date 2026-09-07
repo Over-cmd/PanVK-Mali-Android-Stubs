@@ -25,13 +25,13 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Herramientas y Cabeceras Internas de Clang Requeridas por Funny
+    - name: 🔧 3. Instalar Herramientas y Cabeceras de Clang 18 Requeridas por Ubuntu 24.04
       run: |
         sudo apt-get update
-        # 🟢 INYECCIÓN MAESTRA DE CABECERAS: Instalamos libclang-common-dev y clang para asegurar 
-        # que el archivo opencl-c.h encuentre sus archivos fuente en /usr/lib/ de la maquina virtual.
+        # 🟢 CORRECCIÓN SUPREMA DE DEPENDENCIAS: Reemplazamos el paquete viejo por libclang-common-18-dev
+        # para que la maquina virtual de Ubuntu 24.04 exponga los inodos de opencl-c.h requeridos.
         sudo apt-get install -y meson ninja-build pkg-config python3-mako python3-ply python3-yaml \
-          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-dev rustc cargo
+          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev rustc cargo
 
     - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Parchear Fuentes
       run: |
