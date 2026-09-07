@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  repackage-vulkan-driver:
+  build-android-wrapper:
     runs-on: ubuntu-latest
     
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+    strategy:
+      matrix:
+        build-type: [release] # Compilación limpia en modo producción optimizada
 
     steps:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
@@ -25,7 +26,13 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang y LLVM-20 Nativos del Sistema
+    - name: 🧬 3. Aplicar Parche anon_file.c de Funny para memfd_create
+      run: |
+        cd mesa
+        sed -i 's/#if defined(HAVE_MEMFD_CREATE) \&\& !defined __TERMUX__/#if defined(HAVE_MEMFD_CREATE)/' src/util/anon_file.c
+        cd ..
+
+    - name: 🔧 4. Instalar Suite XCB, Cabeceras Clang y LLVM-20 Nativos del Sistema
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
@@ -38,34 +45,25 @@ jobs:
         sudo apt-get install -y llvm-20-dev libclang-20-dev libclc-20-dev libllvmspirvlib-20-dev spirv-tools libelf-dev libdrm-dev
         sudo pip3 install --break-system-packages --ignore-installed mako PyYAML meson ninja packaging
 
-        echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
-        meson --version
-        ninja --version
-        echo "============================================="
-
-    - name: 🔧 4. Compilar las Tres Herramientas Nativas del Host (Modelo LeeGao)
+    - name: 🔧 5. Generar las Tres Herramientas Nativas en el Host y Enlazar Shims de Funny
       run: |
-        echo "-> Compilando las herramientas clc nativas en el Host con LLVM-20..."
         cd mesa
         meson setup build-host -Dplatforms=[] -Dgallium-drivers=[] -Dvulkan-drivers=[] -Dtools=panfrost -Dprecomp-compiler=enabled -Dinstall-precomp-compiler=true -Dllvm=enabled -Dmesa-clc=enabled -Dinstall-mesa-clc=true
         ninja -C build-host src/compiler/clc/mesa_clc src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
         
-        # Almacenamos el pool triple de ejecutables nativos en el contexto del repositorio principal
-        mkdir -p ../main_repo/native_tools
-        cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
-        cp -fv build-host/src/compiler/spirv/vtn_bindgen2 ../main_repo/native_tools/vtn_bindgen2
-        cp -fv build-host/src/panfrost/clc/panfrost_compile ../main_repo/native_tools/panfrost_compile
-        # 🟢 RETORNO REQUERIDO: Forzamos el regreso a la raiz del host antes de terminar el paso
+        # Inyectamos los shims simbióticos de guiones que Funny exige para no romper el mapeo
+        ln -sf "src/compiler/clc/mesa_clc" "build-host/src/compiler/clc/mesa-clc"
+        ln -sf "src/compiler/spirv/vtn_bindgen2" "build-host/src/compiler/spirv/vtn-bindgen2"
+        
+        # Enganchamos las rutas directo en las arterias del GITHUB_PATH
+        echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/clc" >> $GITHUB_PATH
+        echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/spirv" >> $GITHUB_PATH
+        echo "$GITHUB_WORKSPACE/mesa/build-host/src/panfrost/clc" >> $GITHUB_PATH
         cd ..
 
-    - name: 🔧 5. Aplicar Parches de Extensiones y Mover Fuentes de Forma Segura
+    - name: 🧬 6. Inyectar Parches de Extensiones Ilimitadas de tu Ecosistema
       run: |
-        # 🟢 NAVEGACIÓN SANADA: Movemos la carpeta desde la raiz real del espacio de trabajo
-        echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
-        mv -f ./mesa ./main_repo/mesa
-        
         cd main_repo
-        echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
         --- a/src/vulkan/util/vk_extensions.py
         +++ b/src/vulkan/util/vk_extensions.py
@@ -77,49 +75,55 @@ jobs:
                  if not self.name.startswith(ANDROID_EXTENSION_WHITELIST_PREFIXES):
                      return 'true'
         EOF
+        cd ..
+        # Aplicamos tu parche de extensiones en caliente sobre las fuentes de Funny
+        cd mesa && git apply ../main_repo/extensions.patch || true
+        cd ..
 
-        echo "-> Creando parches para bypass del Linker de Android..."
-        cat << 'EOF' > ./android_stub.patch
-        --- b/src/android_stub/cutils_stub.cpp
-        +++ b/src/android_stub/cutils_stub.cpp
-        @@ -5,6 +5,7 @@
-         #include "dlfcn_nougat.h"
-         extern "C" {
-        +int property_get(const char *key, char *value, const char *default_value) { return 0; }
-         }
-         EOF
-        echo "-> Parches de factoría de Funny estructurados de forma limpia."
-
-    - name: 🔧 6. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
+    - name: 🔧 7. Configurar Meson Cruzado para Android ARM64 (Receta Pura Calibrada)
       run: |
-        echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
-        NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
-        echo "-> NDK detectado legítimo en: $NDK_PATH"
-        cp -r "$NDK_PATH" ./main_repo/android-ndk
-
-    - name: 🐳 7. Configurar Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: 🚀 8. Procesar Compilación de funnymdzz via Docker Plano (Bypass de clc Nativo)
+        cd mesa
+        # Apuntamos el NDK al SDK nativo ultra-actualizado preinstalado en el Host de GitHub
+        export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+        export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
+        
+        # Ejecutamos la configuración híbrida exacta que amarra tu Mali G52 con Termux-X11
+        meson setup build --reconfigure \
+            --cross-file ../main_repo/android-aarch64 \
+            -Dbuildtype=${{ matrix.build-type }} \
+            -Dplatforms=android,x11 \
+            -Dandroid-stub=true \
+            -Dandroid-libbacktrace=disabled \
+            -Dplatform-sdk-version=30 \
+            -Dglx=disabled \
+            -Dgbm=disabled \
+            -Degl=disabled \
+            -Dopengl=false \
+            -Dgles1=disabled \
+            -Dgles2=disabled \
+            -Dglvnd=disabled \
+            -Dvalgrind=disabled \
+            -Dgallium-drivers= \
+            -Dshared-glapi=disabled \
+            -Dzstd=disabled \
+            -Dmesa-clc=system \
+            -Dprecomp-compiler=system \
+            -Dvulkan-drivers=panfrost \
+            -Dllvm=disabled \
+            -Dpanfrost-kmds=kbase,panthor
+            
+    - name: 🚀 8. Compilar Proyecto en el Mismo Suelo via Ninja Nacio
       run: |
-        cd main_repo
-        docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
+        cd mesa
+        meson compile -C build
 
-    - name: 📦 9. Instalar Herramientas de Compresión Zstd en el Host
+    - name: 📦 9. Extraer Silicio Puro y Aplicar Camuflaje Freedreno en la Carpeta usr/
       run: |
-        sudo apt-get update && sudo apt-get install -y zstd tar
-
-    - name: 🛠️ 10. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total)
-      run: |
-        cd main_repo
-        echo "-> Creando jerarquía de directorios estándar para el TAR..."
         mkdir -p ./wrapper/usr/lib
         mkdir -p ./wrapper/usr/share/vulkan/icd.d
 
-        echo "-> Extrayendo el archivo binario nativo de la compilación..."
-        docker create --name container-extract bannerlator-bifrost-11
-        docker cp container-extract:/dist/libvulkan_panfrost.so ./wrapper/usr/lib/libvulkan_freedreno.so
-        docker rm container-extract
+        # Capturamos el binario real generado y activamos el disfraz de Qualcomm
+        cp -fv ./mesa/build/src/panfrost/vulkan/libvulkan_panfrost.so ./wrapper/usr/lib/libvulkan_freedreno.so
 
         echo "-> Creando el archivo manifiesto ICD oficial de Vulkan API 1.3..."
         cat << 'EOF' > ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
@@ -135,20 +139,21 @@ jobs:
         chmod 755 ./wrapper/usr/lib/libvulkan_freedreno.so
         chmod 644 ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
 
-        # GENERACIÓN FORMATO 1: .tar.zst puro manual
+    - name: 🛠️ 10. Forjar Empaquetado Doble Extremo (.TAR.ZST & .ZIP)
+      run: |
+        # Saco 1: .tar.zst manual
         cd wrapper
-        tar -I 'zstd -v -19' -cf ../../wrapper.tar.zst usr/
+        tar -I 'zstd -v -19' -cf ../wrapper.tar.zst usr/
         cd ..
 
-        # GENERACIÓN FORMATO 2: .zip limpio para instaladores gráficos automáticos
+        # Saco 2: .zip grafico automatico
         mkdir -p ./zip_out/usr/lib
         mkdir -p ./zip_out/usr/share/vulkan/icd.d
         cp -fv ./wrapper/usr/lib/libvulkan_freedreno.so ./zip_out/usr/lib/
         cp -fv ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json ./zip_out/usr/share/vulkan/icd.d/
-        
         cd zip_out
-        zip -r ../../wrapper.zip usr/
-        cd ../..
+        zip -r ../wrapper.zip usr/
+        cd ..
 
     - name: 📤 11. Subir Ambos Formatos a los Artefactos de GitHub (TAR.ZST & ZIP)
       uses: actions/upload-artifact@v4
