@@ -29,30 +29,35 @@ COPY android-ndk /root/android-ndk
 COPY android-aarch64 /root/android-aarch64
 COPY native_tools /root/native_tools
 
-# Configuramos las variables de entorno para el compilador del NDK
+# Configuramos las variables de entorno para el NDK y las herramientas nativas
 ENV ANDROID_NDK_HOME=/root/android-ndk
-ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:/root/native_tools:$PATH
 
-# Ejecutamos la compilación cruzada aplicando las flags exactas del plano de LeeGao
+# 🟢 LA REFORMA DEFINITIVA: Inyectamos tu bloque exacto de banderas mapeado al ingles oficial
 RUN cd /root/mesa \
     && meson setup build-android \
         --cross-file /root/android-aarch64 \
-        -Dplatforms=android \
+        --buildtype=release \
+        -Dplatforms=android,x11 \
+        -Dandroid-stub=true \
+        -Dandroid-libbacktrace=disabled \
         -Dplatform-sdk-version=30 \
+        -Dglx=disabled \
+        -Dgbm=disabled \
+        -Degl=disabled \
+        -Dopengl=false \
+        -Dgles1=disabled \
+        -Dgles2=disabled \
+        -Dglvnd=disabled \
+        -Dvalgrind=disabled \
         -Dgallium-drivers= \
-        -Dvulkan-drivers=panfrost \
-        -Dpanfrost-kmds=kbase,panthor \
-        -Dbuild-compile-tools=false \
+        -Dshared-glapi=disabled \
         -Dzstd=disabled \
         -Dmesa-clc=system \
         -Dprecomp-compiler=system \
-        -Dcpp_rtti=false \
-        -Dgbm=disabled \
-        -Dopengl=false \
+        -Dvulkan-drivers=panfrost \
         -Dllvm=disabled \
-        -Dshared-llvm=disabled \
-        -Degl=enabled \
-        -Dglx=disabled \
+        -Dpanfrost-kmds=kbase,panthor \
     && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
 
 # Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción
