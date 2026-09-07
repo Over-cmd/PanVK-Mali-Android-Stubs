@@ -35,10 +35,7 @@ jobs:
           libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
           libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev
         
-        # Inyectamos el pool de LLVM-20 nativo que LeeGao exige en su plano de produccion
         sudo apt-get install -y llvm-20-dev libclang-20-dev libclc-20-dev libllvmspirvlib-20-dev spirv-tools libelf-dev libdrm-dev
-        
-        # 🟢 BYPASS DE PYTHON CORREGIDO: Usamos --ignore-installed para machacar el bloqueo de PyYAML de Debian
         sudo pip3 install --break-system-packages --ignore-installed mako PyYAML meson ninja packaging
 
         echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
@@ -58,10 +55,15 @@ jobs:
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
         cp -fv build-host/src/compiler/spirv/vtn_bindgen2 ../main_repo/native_tools/vtn_bindgen2
         cp -fv build-host/src/panfrost/clc/panfrost_compile ../main_repo/native_tools/panfrost_compile
+        # 🟢 RETORNO REQUERIDO: Forzamos el regreso a la raiz del host antes de terminar el paso
         cd ..
 
-    - name: 🔧 5. Aplicar Parches de Extensiones y Bypass del Linker de Android
+    - name: 🔧 5. Aplicar Parches de Extensiones y Mover Fuentes de Forma Segura
       run: |
+        # 🟢 NAVEGACIÓN SANADA: Movemos la carpeta desde la raiz real del espacio de trabajo
+        echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
+        mv -f ./mesa ./main_repo/mesa
+        
         cd main_repo
         echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
@@ -86,6 +88,7 @@ jobs:
         +int property_get(const char *key, char *value, const char *default_value) { return 0; }
          }
          EOF
+        echo "-> Parches de factoría de Funny estructurados de forma limpia."
 
     - name: 🔧 6. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
       run: |
