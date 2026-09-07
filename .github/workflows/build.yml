@@ -25,40 +25,37 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang 18, libclc, LLVMSPIRVLib y Forzar Meson Moderno
+    - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang y LLVM-20 Nativos del Sistema
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
-          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
-          rustc cargo python3-pip zip libwayland-dev wayland-protocols \
+          gettext flex bison glslang-tools rustc cargo python3-pip zip libwayland-dev wayland-protocols \
           libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
           libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
           libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
-          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev \
-          libclc-18-dev libllvmspirvlib-18-dev
-
-        sudo pip3 install --break-system-packages --upgrade meson
+          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev
         
-        echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
-        meson --version
-        ninja --version
-        echo "============================================="
+        # Inyectamos el pool de LLVM-20 nativo que LeeGao exige en su plano de produccion
+        sudo apt-get install -y llvm-20-dev libclang-20-dev libclc-20-dev libllvmspirvlib-20-dev spirv-tools libelf-dev libdrm-dev
+        sudo pip3 install --break-system-packages --upgrade pip mako PyYAML meson ninja packaging
 
-    - name: 🔧 4. Compilar mesa_clc de Forma Nativa en el Host de GitHub
+    - name: 🔧 4. Compilar las Tres Herramientas Nativas del Host (Modelo LeeGao)
       run: |
-        echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
+        echo "-> Compilando las herramientas clc nativas en el Host con LLVM-20..."
         cd mesa
-        meson setup build-host -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
-        ninja -C build-host src/compiler/clc/mesa_clc
+        meson setup build-host -Dplatforms=[] -Dgallium-drivers=[] -Dvulkan-drivers=[] -Dtools=panfrost -Dprecomp-compiler=enabled -Dinstall-precomp-compiler=true -Dllvm=enabled -Dmesa-clc=enabled -Dinstall-mesa-clc=true
+        ninja -C build-host src/compiler/clc/mesa_clc src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
         
+        # Almacenamos el pool triple de ejecutables nativos en el contexto del repositorio principal
         mkdir -p ../main_repo/native_tools
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
+        cp -fv build-host/src/compiler/spirv/vtn_bindgen2 ../main_repo/native_tools/vtn_bindgen2
+        cp -fv build-host/src/panfrost/clc/panfrost_compile ../main_repo/native_tools/panfrost_compile
         cd ..
 
-        echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
-        mv ./mesa ./main_repo/mesa
+    - name: 🔧 5. Aplicar Parches de Extensiones y Bypass del Linker de Android
+      run: |
         cd main_repo
-
         echo "-> Creando extensiones ilimitadas para Vulkan..."
         cat << 'EOF' > ./extensions.patch
         --- a/src/vulkan/util/vk_extensions.py
@@ -82,28 +79,27 @@ jobs:
         +int property_get(const char *key, char *value, const char *default_value) { return 0; }
          }
          EOF
-        echo "-> Parches de factoría de Funny estructurados de forma limpia."
 
-    - name: 🔧 5. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
+    - name: 🔧 6. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
       run: |
         echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
         NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
         echo "-> NDK detectado legítimo en: $NDK_PATH"
         cp -r "$NDK_PATH" ./main_repo/android-ndk
 
-    - name: 🐳 6. Configurar Docker Buildx
+    - name: 🐳 7. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 7. Procesar Compilación de funnymdzz via Docker Plano (Bypass del Exit Code 1)
+    - name: 🚀 8. Procesar Compilación de funnymdzz via Docker Plano (Bypass de clc Nativo)
       run: |
         cd main_repo
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 8. Instalar Herramientas de Compresión Zstd en el Host
+    - name: 📦 9. Instalar Herramientas de Compresión Zstd en el Host
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v183)
+    - name: 🛠️ 10. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
@@ -134,7 +130,7 @@ jobs:
         tar -I 'zstd -v -19' -cf ../../wrapper.tar.zst usr/
         cd ..
 
-        # GENERACIÓN FORMATO 2: .zip limpio para instaladores gráficos
+        # GENERACIÓN FORMATO 2: .zip limpio para instaladores gráficos automáticos
         mkdir -p ./zip_out/usr/lib
         mkdir -p ./zip_out/usr/share/vulkan/icd.d
         cp -fv ./wrapper/usr/lib/libvulkan_freedreno.so ./zip_out/usr/lib/
@@ -144,7 +140,7 @@ jobs:
         zip -r ../../wrapper.zip usr/
         cd ../..
 
-    - name: 📤 10. Subir Ambos Formatos a los Artefactos de GitHub (TAR.ZST & ZIP)
+    - name: 📤 11. Subir Ambos Formatos a los Artefactos de GitHub (TAR.ZST & ZIP)
       uses: actions/upload-artifact@v4
       with:
         name: panvk-bifrost-driver-pack
