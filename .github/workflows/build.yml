@@ -44,7 +44,7 @@ jobs:
         ninja --version
         echo "============================================="
 
-    - name: 🔧 4. Compilar mesa_clc y Reparar Rutas del Cross-File al Vuelo
+    - name: 🔧 4. Compilar mesa_clc de Forma Nativa en el Host de GitHub
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
@@ -54,10 +54,6 @@ jobs:
         mkdir -p ../main_repo/native_tools
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
         cd ..
-
-        # 🟢 REPARACIÓN MAESTRA SUPREMA: Reemplazamos NDKDIR por la ruta real que le Dockerfile exige (/root/android-ndk)
-        # Esto destruye el exit code 1 del Stage 2 al permitir que Meson localice a Clang al primer milisegundo.
-        sed -i 's|NDKDIR|/root/android-ndk|g' main_repo/android-aarch64
 
         echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
         mv ./mesa ./main_repo/mesa
@@ -107,7 +103,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v182)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v183)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
