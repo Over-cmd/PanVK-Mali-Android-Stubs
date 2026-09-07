@@ -28,8 +28,6 @@ jobs:
     - name: 🔧 3. Instalar Suite XCB Completa, Present Extensions, Wayland y Forzar Meson Moderno
       run: |
         sudo apt-get update
-        # 🟢 INYECCIÓN MAESTRA REFORZADA TOTAL: Agregamos libxcb-present-dev, libxcb-sync-dev, libxcb-xinerama0-dev 
-        # y las dependencias de cercado de memoria de Linux para blindar el escaneo contra la linea 2352 de Funny.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
           gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
           rustc cargo python3-pip zip libwayland-dev wayland-protocols \
@@ -49,10 +47,13 @@ jobs:
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # Configuración purificada elástica para el Mesa sin kernel de Funny
         meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
-        ninja -C build-host src/compiler/clc/mesa_clc
         
+        # 🟢 CORRECCIÓN SUPREMA DE OBJETIVO: Cambiamos la ruta vieja por el nombre de target plano 'mesa_clc'
+        # para que Ninja localice el inodo de preprocesado de Funny al primer milisegundo.
+        ninja -C build-host mesa_clc
+        
+        # Guardamos el ejecutable nativo en un lugar seguro del repositorio principal
         mkdir -p ../main_repo/native_tools
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
         cd ..
@@ -84,6 +85,7 @@ jobs:
         +int property_get(const char *key, char *value, const char *default_value) { return 0; }
          }
          EOF
+        echo "-> Parches de factoría de Funny estructurados de forma limpia."
 
     - name: 🔧 5. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
       run: |
@@ -104,7 +106,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v172)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v166)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
