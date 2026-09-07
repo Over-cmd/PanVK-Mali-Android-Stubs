@@ -27,16 +27,14 @@ jobs:
 
     - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang 18, libclc, LLVMSPIRVLib y Forzar Meson Moderno
       run: |
-        sudo apt-get update
-        # Inyectamos el pool completo de dependencias de PC para que el Host no se queje al activar Panfrost
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
-          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
-          rustc cargo python3-pip zip libwayland-dev wayland-protocols \
-          libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
-          libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
-          libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
-          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev libclc-18-dev \
-          libllvm-spirv18-dev || sudo apt-get install -y libclc-dev libllvm-spirv-dev
+  gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
+  rustc cargo python3-pip zip libwayland-dev wayland-protocols \
+  libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
+  libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
+  libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
+  libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev \
+  libclc-18-dev libllvmspirvlib-18-dev
 
         sudo pip3 install --break-system-packages --upgrade meson
         
