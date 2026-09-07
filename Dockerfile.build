@@ -1,11 +1,11 @@
 # ==============================================================================
-# STAGE 1: Entorno de Compilación Nativo del Host con LLVM y Rust (Bypass de clc)
+# UN SOLO PASO BLINDADO: Compilación Cruzada Limpia para Android ARM64 Bifrost
 # ==============================================================================
-FROM ubuntu:24.04 AS host-compiler
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instala todas las dependencias críticas exigidas por Mesa moderno y funnymdzz
+# Instala las herramientas básicas exigidas por Meson para compilar el target
 RUN apt-get update && apt-get install -y \
     build-essential \
     meson \
@@ -17,69 +17,23 @@ RUN apt-get update && apt-get install -y \
     gettext \
     flex \
     bison \
-    glslang-tools \
     git \
     curl \
-    # 🟢 DEPENDENCIAS CRÍTICAS DE LLVM REQUERIDAS POR MESA_CLC
-    llvm-dev \
-    libclang-dev \
-    clang \
-    # 🟢 EL COMPONENTE FALTANTE DEFINITIVO: Rust nativo del host para que clc no explote
-    rustc \
-    cargo \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
 
-# Copiamos la subcarpeta de las fuentes de Mesa clonada dinámicamente por tu Workflow
+# Copiamos todo el contexto preparado por el Workflow directo al contenedor
 COPY mesa /root/mesa
-
-# 🟢 PASO MAESTRO 1: Compilamos la herramienta nativa clc teniendo todo el pool de Rust y LLVM activo
-RUN cd /root/mesa \
-    && meson setup build-native \
-        -Dgallium-drivers=none \
-        -Dvulkan-drivers=none \
-        -Dglx=disabled \
-        -Degl=disabled \
-        -Dgbm=disabled \
-        -Dbuild-compile-tools=true \
-    && ninja -C build-native src/compiler/clc/mesa_clc
-
-# ==============================================================================
-# STAGE 2: Compilación Cruzada para Android ARM64 (Silicio de Panfrost)
-# ==============================================================================
-FROM ubuntu:24.04 AS android-cross-compiler
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Instala las herramientas de empaquetado y python para el target cruzado
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    meson \
-    ninja-build \
-    pkg-config \
-    python3-mako \
-    python3-ply \
-    python3-yaml \
-    gettext \
-    flex \
-    bison \
-    git \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /root
-
-# Traemos tanto las fuentes de Mesa como la herramienta mesa_clc ya compilada del Stage 1
-COPY --from=host-compiler /root/mesa /root/mesa
 COPY android-ndk /root/android-ndk
 COPY android-aarch64 /root/android-aarch64
+COPY native_tools /root/native_tools
 
-# Configuramos las variables de entorno para que el compilador de Rust cruzado localice el NDK
+# Configuramos las variables de entorno para el compilador del NDK
 ENV ANDROID_NDK_HOME=/root/android-ndk
 ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 
-# 🟢 PASO MAESTRO 2: Ejecutamos la compilación cruzada pasándole la herramienta clc nativa del Stage 1
+# Ejecutamos la compilación cruzada apuntando directamente al mesa_clc externo
 RUN cd /root/mesa \
     && meson setup build-android \
         --cross-file /root/android-aarch64 \
@@ -87,10 +41,13 @@ RUN cd /root/mesa \
         -Dplatform-sdk-version=30 \
         -Dgallium-drivers=panfrost \
         -Dvulkan-drivers=panfrost,wrapper \
+        # 🟢 ACTIVACIÓN MAESTRA DE BIFROST: Forzamos a que el driver de panvk compile 
+        # las meta-descripciones específicas de la carpeta bifrost/ para tu Mali G52.
+        -Dpanfrost-version=6 \
         -Dpanfrost-rust=true \
         -Dpanfrost-kmds=kbase \
         -Dbuild-compile-tools=false \
-        -Dexternal-mesa-clc=/root/mesa/build-native/src/compiler/clc/mesa_clc \
+        -Dexternal-mesa-clc=/root/native_tools/mesa_clc \
         -Dcpp_rtti=false \
         -Dgbm=disabled \
         -Dopengl=false \
@@ -100,6 +57,6 @@ RUN cd /root/mesa \
         -Dglx=disabled \
     && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
 
-# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción de tu Workflow
+# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción
 RUN mkdir -p /dist \
     && cp -fv /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so /dist/libvulkan_panfrost.so
