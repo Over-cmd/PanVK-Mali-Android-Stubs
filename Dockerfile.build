@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instala las herramientas de empaquetado, Python y utilidades del sistema
+# Instala las herramientas básicas exigidas por Meson para compilar el target
 RUN apt-get update && apt-get install -y \
     build-essential \
     meson \
@@ -19,18 +19,7 @@ RUN apt-get update && apt-get install -y \
     bison \
     git \
     curl \
-    zip \
     && rm -rf /var/lib/apt/lists/*
-
-# 🟢 INYECCIÓN MAESTRA DE RUSTUP: Instalamos el gestor oficial y agregamos el target de Android
-# que Meson exige estrictamente para validar la linea "rust = ..." de tu android-aarch64.
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y --default-toolchain stable \
-    && rustup target add aarch64-linux-android \
-    && chmod -R 775 $RUSTUP_HOME $CARGO_HOME
 
 WORKDIR /root
 
@@ -44,9 +33,9 @@ COPY native_tools /root/native_tools
 ENV ANDROID_NDK_HOME=/root/android-ndk
 ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 
-# Ejecutamos la compilación cruzada apuntando directamente al mesa_clc externo
+# Ejecutamos la compilación cruzada aplicando las flags exactas del plano de LeeGao
 RUN cd /root/mesa \
-    && (meson setup build-android \
+    && meson setup build-android \
         --cross-file /root/android-aarch64 \
         -Dplatforms=android \
         -Dplatform-sdk-version=30 \
@@ -54,14 +43,16 @@ RUN cd /root/mesa \
         -Dvulkan-drivers=panfrost \
         -Dpanfrost-kmds=kbase,panthor \
         -Dbuild-compile-tools=false \
-        -Dexternal-mesa-clc=/root/native_tools/mesa_clc \
+        -Dzstd=disabled \
+        -Dmesa-clc=system \
+        -Dprecomp-compiler=system \
         -Dcpp_rtti=false \
         -Dgbm=disabled \
         -Dopengl=false \
         -Dllvm=disabled \
         -Dshared-llvm=disabled \
         -Degl=enabled \
-        -Dglx=disabled || (cat build-android/meson-logs/meson-log.txt 2>/dev/null || echo "-> Error critico de inicializacion sin log" && exit 1)) \
+        -Dglx=disabled \
     && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
 
 # Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción
