@@ -97,11 +97,12 @@ jobs:
         export PKG_CONFIG_PATH_FOR_BUILD="/usr/lib/x86_64-linux-gnu/pkgconfig"
         export PKG_CONFIG_PATH="$REAL_NDK/prebuilt/linux-x86_64/lib/pkgconfig"
 
-        # 🟢 CONFIGURACIÓN SANEADA TOTAL: Removemos la bandera panfrost-version obsoleta
+        # 🟢 CORRECCIÓN SUPREMA DE ENTREGAS: Cambiamos android,x11 por -Dplatforms=x11 plano
+        # emulando tu jugada maestra ganadora de Gamenative para asegurar la compatibilidad total.
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
-            -Dplatforms=android,x11 \
+            -Dplatforms=x11 \
             -Dandroid-stub=true \
             -Dandroid-libbacktrace=disabled \
             -Dplatform-sdk-version=30 \
