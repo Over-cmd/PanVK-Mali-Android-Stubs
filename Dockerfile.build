@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instala las herramientas de empaquetado, Python y la suite de Rust nativa del Host
+# Instala las herramientas de empaquetado, Python y utilidades del sistema
 RUN apt-get update && apt-get install -y \
     build-essential \
     meson \
@@ -19,10 +19,18 @@ RUN apt-get update && apt-get install -y \
     bison \
     git \
     curl \
-    # 🟢 EL COMPONENTE DEFINTIVO: Saciamos el cross-file inyectando Rust y Cargo en el contenedor
-    rustc \
-    cargo \
+    zip \
     && rm -rf /var/lib/apt/lists/*
+
+# 🟢 INYECCIÓN MAESTRA DE RUSTUP: Instalamos el gestor oficial y agregamos el target de Android
+# que Meson exige estrictamente para validar la linea "rust = ..." de tu android-aarch64.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y --default-toolchain stable \
+    && rustup target add aarch64-linux-android \
+    && chmod -R 775 $RUSTUP_HOME $CARGO_HOME
 
 WORKDIR /root
 
@@ -56,6 +64,6 @@ RUN cd /root/mesa \
         -Dglx=disabled || (cat build-android/meson-logs/meson-log.txt 2>/dev/null || echo "-> Error critico de inicializacion sin log" && exit 1)) \
     && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
 
-# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción de tu Workflow
+# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción
 RUN mkdir -p /dist \
     && cp -fv /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so /dist/libvulkan_panfrost.so
