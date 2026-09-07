@@ -35,8 +35,6 @@ jobs:
     - name: 🔧 4. Instalar Suite XCB, Cabeceras Clang, libdrm y LLVM-20 Nativos del Sistema
       run: |
         sudo apt-get update
-        # 🟢 INYECCIÓN DE CONTROLADORES MAESTRA: Instalamos libdrm-dev e intel-gpu-tools/herramientas base
-        # para proveer de forma nativa los archivos .pc exigidos estrictamente por la linea 1933 de Funny.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
           gettext flex bison glslang-tools rustc cargo python3-pip zip libwayland-dev wayland-protocols \
           libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
@@ -94,8 +92,7 @@ jobs:
         export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
         export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
         
-        # 🟢 CALIBRACIÓN ANTI-REBOTE: Inyectamos -Ddraw-with-llvm=false para indicarle al compilador 
-        # que ignore el enlazador de renderizado por software de PC en el Target de Android.
+        # 🟢 CONFI SANADA: Eliminamos por completo la flag experimental draw-with-llvm que rompia el script
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -117,7 +114,6 @@ jobs:
             -Dmesa-clc=system \
             -Dprecomp-compiler=system \
             -Dvulkan-drivers=panfrost \
-            -Ddraw-with-llvm=false \
             -Dllvm=disabled \
             -Dpanfrost-kmds=kbase,panthor
             
