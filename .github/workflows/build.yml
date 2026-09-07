@@ -38,13 +38,11 @@ jobs:
         ninja --version
         echo "============================================="
 
-    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Parchear Fuentes de Funny
+    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Aplicar Parches Planos de Funny
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # 🟢 CORRECCIÓN SUPREMA DE FACTORÍA FUNNY: Limpiamos por completo las flags obsoletas. 
-        # Dejamos que Meson configure de forma automatica el compilador nativo clc apagando unicamente 
-        # las pruebas y los codecs de video para evitar el choque de opciones invalidas.
+        # Configuración elástica pura para el Mesa de Funny sin módulos invasivos
         meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         ninja -C build-host src/compiler/clc/mesa_clc
         
@@ -80,21 +78,7 @@ jobs:
         +int property_get(const char *key, char *value, const char *default_value) { return 0; }
          }
          EOF
-
-        # INYECCIÓN SUPREMA DE ADRENOTOOLS Y PARALELISMO OCTA-CORE
-        TARGET_DEVICE_C="mesa/src/vulkan/wrapper/wrapper_device.c"
-        if [ -f "$TARGET_DEVICE_C" ]; then
-            echo "-> Soldando Adrenotools y control Octa-Core en el ADN del driver..."
-            sed -i '/#include "wrapper_private.h"/a \
-            #include <adrenotools/driver.h>\n\
-            #ifndef BOX64_DYNAREC_BIGBLOCK\n#define BOX64_DYNAREC_BIGBLOCK 0\n#endif\n\
-            #ifndef BOX64_MOUSE_ASYNC\n#define BOX64_MOUSE_ASYNC 1\n#endif\n\
-            #ifndef BOX64_DYNAREC_STRONGMEM\n#define BOX64_DYNAREC_STRONGMEM 1\n#endif\n\
-            #ifndef MALLOC_TRIM_THRESHOLD_\n#define MALLOC_TRIM_THRESHOLD_ 65536\n#endif' "$TARGET_DEVICE_C"
-            
-            sed -i '/wrapper_CreateDevice/!b;/{/a \  adrenotools_open_libvulkan_hooks(physical_device->instance->adrenotools_gpu_workaround);' "$TARGET_DEVICE_C"
-            echo "-> Adrenotools inyectado con éxito."
-        fi
+        echo "-> Parches de factoría de Funny estructurados de forma limpia."
 
     - name: 🔧 5. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
       run: |
