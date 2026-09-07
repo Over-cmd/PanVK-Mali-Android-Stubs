@@ -25,17 +25,25 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Herramientas y Cabeceras de Clang 18 Requeridas por Ubuntu 24.04
+    - name: 🔧 3. Instalar Herramientas, Cabeceras Clang 18 y Forzar Meson Moderno
       run: |
         sudo apt-get update
-        # 🟢 CORRECCIÓN SUPREMA DE DEPENDENCIAS: Reemplazamos el paquete viejo por libclang-common-18-dev
-        # para que la maquina virtual de Ubuntu 24.04 exponga los inodos de opencl-c.h requeridos.
-        sudo apt-get install -y meson ninja-build pkg-config python3-mako python3-ply python3-yaml \
-          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev rustc cargo
+        # Instalamos las dependencias nativas del sistema host de Ubuntu 24.04
+        sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
+          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev rustc cargo python3-pip
+        
+        # 🟢 EL INYECTOR MAESTRO DEFINITIVO: Forzamos la actualización de Meson via PIP para romper 
+        # la barrera del error 1.3.2 y cumplir de golpe la regla estricta de >= 1.4.0 de Funny.
+        sudo pip3 install --break-system-packages --upgrade meson
+        
+        echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
+        meson --version
+        ninja --version
+        echo "============================================="
 
     - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Parchear Fuentes
       run: |
-        echo "-> Compilando el clon nativo de mesa_clc directo en el Host..."
+        echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
         meson setup build-host -Dgallium-drivers=none -Dvulkan-drivers=none -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-compile-tools=true
         ninja -C build-host src/compiler/clc/mesa_clc
