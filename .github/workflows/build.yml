@@ -1,4 +1,4 @@
-name: Build PanVK Bifrost Vulkan 1.1 Generic Wrapper (TAR.ZST)
+name: Build PanVK Bifrost Vulkan 1.3 Generic Wrapper (TAR.ZST)
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
         echo "-> NDK detectado legítimo en: $NDK_PATH"
         cp -r "$NDK_PATH" ./main_repo/android-ndk
 
-    - name: 🔧 4. Estructurar Árbol de Trabajo y Mover Fuentes de Mesa
+    - name: 🔧 4. Estructurar Árbol de Trabajo, Mover Fuentes de Mesa e Inyectar Adrenotools
       run: |
         echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
         mv ./mesa ./main_repo/mesa
@@ -62,6 +62,24 @@ jobs:
          }
          EOF
 
+        # 🟢 LA INYECCIÓN SUPREMA DE ADRENOTOOLS:
+        # Forzamos a que el wrapper de Funny compile con soporte estricto de adrenotools para abrir /dev/mali0,
+        # e inyectamos los optimizadores octa-core anti-tirones al mismo tiempo.
+        TARGET_DEVICE_C="mesa/src/vulkan/wrapper/wrapper_device.c"
+        if [ -f "$TARGET_DEVICE_C" ]; then
+            echo "-> Soldando Adrenotools y control Octa-Core en el ADN del driver..."
+            sed -i '/#include "wrapper_private.h"/a \
+            #include <adrenotools/driver.h>\n\
+            #ifndef BOX64_DYNAREC_BIGBLOCK\n#define BOX64_DYNAREC_BIGBLOCK 0\n#endif\n\
+            #ifndef BOX64_MOUSE_ASYNC\n#define BOX64_MOUSE_ASYNC 1\n#endif\n\
+            #ifndef BOX64_DYNAREC_STRONGMEM\n#define BOX64_DYNAREC_STRONGMEM 1\n#endif\n\
+            #ifndef MALLOC_TRIM_THRESHOLD_\n#define MALLOC_TRIM_THRESHOLD_ 65536\n#endif' "$TARGET_DEVICE_C"
+            
+            # Forzamos la bandera de hooks de Adrenotools en el arranque del dispositivo virtual
+            sed -i '/wrapper_CreateDevice/!b;/{/a \  adrenotools_open_libvulkan_hooks(physical_device->instance->adrenotools_gpu_workaround);' "$TARGET_DEVICE_C"
+            echo "-> Adrenotools soldado con éxito completo."
+        fi
+
     - name: 🐳 5. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -83,17 +101,16 @@ jobs:
 
         echo "-> Extrayendo el archivo binario nativo de la compilación..."
         docker create --name container-extract bannerlator-bifrost-11
-        # Extraemos el archivo real y le aplicamos tu truco maestro de renombrado a freedreno en la ruta lib
         docker cp container-extract:/dist/libvulkan_panfrost.so ./wrapper/usr/lib/libvulkan_freedreno.so
         docker rm container-extract
 
-        echo "-> Creando el archivo manifiesto ICD oficial de Vulkan (Espejo Estructural de Funny)..."
+        echo "-> Creando el archivo manifiesto ICD oficial de Vulkan (Espejo Estructural Actualizado API 1.3)..."
         cat << 'EOF' > ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
         {
             "file_format_version": "1.0.0",
             "ICD": {
                 "library_path": "libvulkan_freedreno.so",
-                "api_version": "1.1.0"
+                "api_version": "1.3.289"
             }
         }
         EOF
