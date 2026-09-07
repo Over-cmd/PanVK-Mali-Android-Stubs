@@ -38,13 +38,14 @@ jobs:
         ninja --version
         echo "============================================="
 
-    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Parchear Fuentes
+    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Parchear Fuentes de Funny
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # 🟢 CORRECCIÓN SUPREMA DE OPCIONES: Dejamos gallium-drivers como una cadena vacia y cambiamos
-        # vulkan-drivers de igual forma para cumplir con el esquema estricto de validacion de Funny.
-        meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-compile-tools=true
+        # 🟢 CORRECCIÓN SUPREMA DE FACTORÍA FUNNY: Limpiamos por completo las flags obsoletas. 
+        # Dejamos que Meson configure de forma automatica el compilador nativo clc apagando unicamente 
+        # las pruebas y los codecs de video para evitar el choque de opciones invalidas.
+        meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         ninja -C build-host src/compiler/clc/mesa_clc
         
         # Guardamos el ejecutable nativo en un lugar seguro del repositorio principal
@@ -92,7 +93,7 @@ jobs:
             #ifndef MALLOC_TRIM_THRESHOLD_\n#define MALLOC_TRIM_THRESHOLD_ 65536\n#endif' "$TARGET_DEVICE_C"
             
             sed -i '/wrapper_CreateDevice/!b;/{/a \  adrenotools_open_libvulkan_hooks(physical_device->instance->adrenotools_gpu_workaround);' "$TARGET_DEVICE_C"
-            echo "-> Adrenotools inyectado."
+            echo "-> Adrenotools inyectado con éxito."
         fi
 
     - name: 🔧 5. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
