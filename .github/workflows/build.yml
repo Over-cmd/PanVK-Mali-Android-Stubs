@@ -28,8 +28,6 @@ jobs:
     - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang 18, libclc, LLVMSPIRVLib y Forzar Meson Moderno
       run: |
         sudo apt-get update
-        # 🟢 SYNTAX SOLVED: Eliminamos la barra invertida final conflictiva de la linea 31 
-        # e inyectamos los paquetes exactos de OpenCL cerrando el comando de forma limpia y legal.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
           gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
           rustc cargo python3-pip zip libwayland-dev wayland-protocols \
@@ -46,19 +44,20 @@ jobs:
         ninja --version
         echo "============================================="
 
-    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Aplicar Parches Planos de Funny
+    - name: 🔧 4. Compilar mesa_clc y Reparar Rutas del Cross-File al Vuelo
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # Setup con Panfrost activo en el Host para forzar la inyección de mesa_clc sin errores parásitos
         meson setup build-host -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
-        
-        # Invocamos la forja del ejecutable nativo exacto
         ninja -C build-host src/compiler/clc/mesa_clc
         
         mkdir -p ../main_repo/native_tools
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
         cd ..
+
+        # 🟢 REPARACIÓN MAESTRA SUPREMA: Reemplazamos NDKDIR por la ruta real que le Dockerfile exige (/root/android-ndk)
+        # Esto destruye el exit code 1 del Stage 2 al permitir que Meson localice a Clang al primer milisegundo.
+        sed -i 's|NDKDIR|/root/android-ndk|g' main_repo/android-aarch64
 
         echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
         mv ./mesa ./main_repo/mesa
@@ -108,7 +107,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v180)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v182)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
