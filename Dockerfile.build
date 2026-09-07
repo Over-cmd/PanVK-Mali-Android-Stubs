@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instala las herramientas básicas exigidas por Meson para compilar el target
+# Instala las herramientas de empaquetado, Python y la suite de Rust nativa del Host
 RUN apt-get update && apt-get install -y \
     build-essential \
     meson \
@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y \
     bison \
     git \
     curl \
+    # 🟢 EL COMPONENTE DEFINTIVO: Saciamos el cross-file inyectando Rust y Cargo en el contenedor
+    rustc \
+    cargo \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -33,8 +36,7 @@ COPY native_tools /root/native_tools
 ENV ANDROID_NDK_HOME=/root/android-ndk
 ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 
-# 🟢 EXPOSITOR DE LOGS ATÓMICO: Encapsulamos el setup en un bloque condicional. 
-# Si falla, imprimirá el meson-log.txt completo en la consola de GitHub antes de abortar.
+# Ejecutamos la compilación cruzada apuntando directamente al mesa_clc externo
 RUN cd /root/mesa \
     && (meson setup build-android \
         --cross-file /root/android-aarch64 \
@@ -51,9 +53,9 @@ RUN cd /root/mesa \
         -Dllvm=disabled \
         -Dshared-llvm=disabled \
         -Degl=enabled \
-        -Dglx=disabled || (cat build-android/meson-logs/meson-log.txt && exit 1)) \
-    && (ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so || (cat build-android/meson-logs/meson-log.txt && exit 1))
+        -Dglx=disabled || (cat build-android/meson-logs/meson-log.txt 2>/dev/null || echo "-> Error critico de inicializacion sin log" && exit 1)) \
+    && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
 
-# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción
+# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción de tu Workflow
 RUN mkdir -p /dist \
     && cp -fv /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so /dist/libvulkan_panfrost.so
