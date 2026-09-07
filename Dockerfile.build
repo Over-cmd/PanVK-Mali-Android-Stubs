@@ -1,102 +1,105 @@
-# =========================================================================
-# STAGE 1: Entorno de Compilación Cruzada con funnymdzz (Mali kbase)
-# =========================================================================
-FROM ubuntu:24.04 AS builder
-WORKDIR /root
+# ==============================================================================
+# STAGE 1: Entorno de Compilación Nativo del Host con LLVM y Rust (Bypass de clc)
+# ==============================================================================
+FROM ubuntu:24.04 AS host-compiler
 
-# Evitar diálogos interactivos durante la instalación de paquetes
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias esenciales completas del sistema host
+# Instala todas las dependencias críticas exigidas por Mesa moderno y funnymdzz
 RUN apt-get update && apt-get install -y \
-    curl \
     build-essential \
     meson \
     ninja-build \
-    python3 \
-    python3-pip \
-    python3-mako \
-    git \
-    bison \
-    flex \
     pkg-config \
-    libdrm-dev \
-    libxshmfence-dev \
+    python3-mako \
+    python3-ply \
+    python3-yaml \
+    gettext \
+    flex \
+    bison \
     glslang-tools \
-    rustup \
+    git \
+    curl \
+    # 🟢 DEPENDENCIAS CRÍTICAS DE LLVM REQUERIDAS POR MESA_CLC
+    llvm-dev \
+    libclang-dev \
+    clang \
+    # 🟢 EL COMPONENTE FALTANTE DEFINITIVO: Rust nativo del host para que clc no explote
+    rustc \
+    cargo \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar cbindgen de forma instantánea vía Pip para ahorrar tiempo de CPU
-RUN pip3 install --break-system-packages cbindgen || pip3 install cbindgen || true
+WORKDIR /root
 
-# Configurar el compilador de Rust oficial e inyectar de forma obligatoria el target de Android ARM64
-RUN rustup default stable \
-    && rustup target add aarch64-linux-android
+# Copiamos la subcarpeta de las fuentes de Mesa clonada dinámicamente por tu Workflow
+COPY mesa /root/mesa
 
-# Exportar las variables de entorno de Rust de forma global y permanente en Docker
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Forzar el enlace simbólico de glslang para que Meson lo localice sin problemas
-RUN ln -s /usr/bin/glslangValidator /usr/bin/glslang_validator || true
-
-# Recibimos las fuentes de Mesa, el Android NDK intacto y los archivos locales desde el flujo YAML
-COPY ./mesa /root/mesa
-COPY ./android-ndk /root/android-ndk
-COPY ./extensions.patch /root/extensions.patch
-COPY ./android_stub.patch /root/android_stub.patch
-COPY ./android-aarch64 /root/android-aarch64
-
-# CONFIGURACIÓN DE ENTORNO EN CALIENTE PARA CLANG Y RUST:
-ENV PATH="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH}"
-ENV CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
-ENV RUSTFLAGS="-C linker=/root/android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android30-clang"
-
-# Aplicar los parches locales e inyectar la ruta física del NDK en el cross-file
-RUN cd /root/mesa \
-    && patch -p1 < /root/extensions.patch || true \
-    && patch -p1 < /root/android_stub.patch || true \
-    && sed -i "s|NDKDIR|/root/android-ndk|g" /root/android-aarch64
-
-# =========================================================================
-# PASO MAESTRO 1: Compilar únicamente herramientas de compilación de Shaders (modo puro compile-tools)
-# =========================================================================
+# 🟢 PASO MAESTRO 1: Compilamos la herramienta nativa clc teniendo todo el pool de Rust y LLVM activo
 RUN cd /root/mesa \
     && meson setup build-native \
-       -Dgallium-drivers=none \
-       -Dvulkan-drivers=none \
-       -Dglx=disabled \
-       -Degl=disabled \
-       -Dgbm=disabled \
-       -Dbuild-compile-tools=true \
+        -Dgallium-drivers=none \
+        -Dvulkan-drivers=none \
+        -Dglx=disabled \
+        -Degl=disabled \
+        -Dgbm=disabled \
+        -Dbuild-compile-tools=true \
     && ninja -C build-native src/compiler/clc/mesa_clc
 
-# =========================================================================
-# PASO MAESTRO 2: Ejecutar la Compilación Cruzada real para Android kbase
-# Apuntamos a la ruta de mesa_clc nativa para que valide la sanidad de inmediato
-# =========================================================================
+# ==============================================================================
+# STAGE 2: Compilación Cruzada para Android ARM64 (Silicio de Panfrost)
+# ==============================================================================
+FROM ubuntu:24.04 AS android-cross-compiler
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instala las herramientas de empaquetado y python para el target cruzado
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    meson \
+    ninja-build \
+    pkg-config \
+    python3-mako \
+    python3-ply \
+    python3-yaml \
+    gettext \
+    flex \
+    bison \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /root
+
+# Traemos tanto las fuentes de Mesa como la herramienta mesa_clc ya compilada del Stage 1
+COPY --from=host-compiler /root/mesa /root/mesa
+COPY android-ndk /root/android-ndk
+COPY android-aarch64 /root/android-aarch64
+
+# Configuramos las variables de entorno para que el compilador de Rust cruzado localice el NDK
+ENV ANDROID_NDK_HOME=/root/android-ndk
+ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+
+# 🟢 PASO MAESTRO 2: Ejecutamos la compilación cruzada pasándole la herramienta clc nativa del Stage 1
 RUN cd /root/mesa \
     && meson setup build-android \
-       --cross-file /root/android-aarch64 \
-       -Dbuildtype=release \
-       -Dshared-glapi=false \
-       -Dgallium-drivers=none \
-       -Dvulkan-drivers=panfrost \
-       -Dpanfrost-kmds=kbase \
-       -Dpanfrost-rust=true \
-       -Dplatforms=android \
-       -Dglx=disabled \
-       -Degl=disabled \
-       -Dgbm=disabled \
-       -Dgles1=disabled \
-       -Dgles2=disabled \
-       -Dmesa-clc=/root/mesa/build-native/src/compiler/clc/mesa_clc \
-    && ninja -C build-android
+        --cross-file /root/android-aarch64 \
+        -Dplatforms=android \
+        -Dplatform-sdk-version=30 \
+        -Dgallium-drivers=panfrost \
+        -Dvulkan-drivers=panfrost,wrapper \
+        -Dpanfrost-rust=true \
+        -Dpanfrost-kmds=kbase \
+        -Dbuild-compile-tools=false \
+        -Dexternal-mesa-clc=/root/mesa/build-native/src/compiler/clc/mesa_clc \
+        -Dcpp_rtti=false \
+        -Dgbm=disabled \
+        -Dopengl=false \
+        -Dllvm=disabled \
+        -Dshared-llvm=disabled \
+        -Degl=enabled \
+        -Dglx=disabled \
+    && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
 
-# =========================================================================
-# STAGE 2: Conservación del Archivo Real Monolítico para la Extracción
-# =========================================================================
-FROM ubuntu:24.04 AS final
-WORKDIR /dist
-
-# Conservamos el binario real compilado de Mali con su nombre original
-COPY --from=builder /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so ./libvulkan_panfrost.so
+# Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción de tu Workflow
+RUN mkdir -p /dist \
+    && cp -fv /root/mesa/build-android/src/panfrost/vulkan/libvulkan_panfrost.so /dist/libvulkan_panfrost.so
