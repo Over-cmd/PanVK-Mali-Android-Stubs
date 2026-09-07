@@ -1,5 +1,5 @@
 # ==============================================================================
-# UN SOLO PASO BLINDADO: Compilación Cruzada Limpia para Android ARM64 Bifrost v6
+# UN SOLO PASO BLINDADO: Compilación Cruzada Limpia para Android ARM64 Bifrost
 # ==============================================================================
 FROM ubuntu:24.04
 
@@ -39,13 +39,11 @@ RUN cd /root/mesa \
         --cross-file /root/android-aarch64 \
         -Dplatforms=android \
         -Dplatform-sdk-version=30 \
-        # 🟢 CORRECCIÓN SUPREMA DE FLAGS: Apagamos gallium-drivers dejándolo vacío
-        # y removemos panfrost-rust manual para que el arbol minimalista de Funny 
-        # compile Vulkan puro sin buscar librerías DRM de escritorio muertas.
         -Dgallium-drivers= \
         -Dvulkan-drivers=panfrost \
-        -Dpanfrost-version=6 \
-        -Dpanfrost-kmds=kbase \
+        # 🟢 PARCHE DE COMPILACIÓN SEGURO: Eliminamos panfrost-version=6 que causaba el bloqueo 
+        # e inyectamos la dupla kbase,panthor calcando el layout de producción del maestro Funny.
+        -Dpanfrost-kmds=kbase,panthor \
         -Dbuild-compile-tools=false \
         -Dexternal-mesa-clc=/root/native_tools/mesa_clc \
         -Dcpp_rtti=false \
