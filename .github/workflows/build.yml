@@ -25,15 +25,26 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
+    - name: 🔧 3. Instalar Herramientas y Cabeceras Internas de Clang Requeridas por Funny
       run: |
-        echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
-        NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
-        echo "-> NDK detectado legítimo en: $NDK_PATH"
-        cp -r "$NDK_PATH" ./main_repo/android-ndk
+        sudo apt-get update
+        # 🟢 INYECCIÓN MAESTRA DE CABECERAS: Instalamos libclang-common-dev y clang para asegurar 
+        # que el archivo opencl-c.h encuentre sus archivos fuente en /usr/lib/ de la maquina virtual.
+        sudo apt-get install -y meson ninja-build pkg-config python3-mako python3-ply python3-yaml \
+          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-dev rustc cargo
 
-    - name: 🔧 4. Estructurar Árbol de Trabajo, Mover Fuentes de Mesa e Inyectar Adrenotools
+    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Parchear Fuentes
       run: |
+        echo "-> Compilando el clon nativo de mesa_clc directo en el Host..."
+        cd mesa
+        meson setup build-host -Dgallium-drivers=none -Dvulkan-drivers=none -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-compile-tools=true
+        ninja -C build-host src/compiler/clc/mesa_clc
+        
+        # Guardamos el ejecutable nativo en un lugar seguro del repositorio principal
+        mkdir -p ../main_repo/native_tools
+        cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
+        cd ..
+
         echo "-> Moviendo el código fuente real de funnymdzz al contexto del repositorio..."
         mv ./mesa ./main_repo/mesa
         cd main_repo
@@ -62,9 +73,7 @@ jobs:
          }
          EOF
 
-        # 🟢 LA INYECCIÓN SUPREMA DE ADRENOTOOLS:
-        # Forzamos a que el wrapper de Funny compile con soporte estricto de adrenotools para abrir /dev/mali0,
-        # e inyectamos los optimizadores octa-core anti-tirones al mismo tiempo.
+        # INYECCIÓN SUPREMA DE ADRENOTOOLS Y PARALELISMO OCTA-CORE
         TARGET_DEVICE_C="mesa/src/vulkan/wrapper/wrapper_device.c"
         if [ -f "$TARGET_DEVICE_C" ]; then
             echo "-> Soldando Adrenotools y control Octa-Core en el ADN del driver..."
@@ -75,27 +84,32 @@ jobs:
             #ifndef BOX64_DYNAREC_STRONGMEM\n#define BOX64_DYNAREC_STRONGMEM 1\n#endif\n\
             #ifndef MALLOC_TRIM_THRESHOLD_\n#define MALLOC_TRIM_THRESHOLD_ 65536\n#endif' "$TARGET_DEVICE_C"
             
-            # Forzamos la bandera de hooks de Adrenotools en el arranque del dispositivo virtual
             sed -i '/wrapper_CreateDevice/!b;/{/a \  adrenotools_open_libvulkan_hooks(physical_device->instance->adrenotools_gpu_workaround);' "$TARGET_DEVICE_C"
-            echo "-> Adrenotools soldado con éxito completo."
+            echo "-> Adrenotools inyectado."
         fi
 
-    - name: 🐳 5. Configurar Docker Buildx
+    - name: 🔧 5. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
+      run: |
+        echo "-> Buscando el Android NDK nativo en el servidor de GitHub..."
+        NDK_PATH=$(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n 1)
+        echo "-> NDK detectado legítimo en: $NDK_PATH"
+        cp -r "$NDK_PATH" ./main_repo/android-ndk
+
+    - name: 🐳 6. Configurar Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: 🚀 6. Procesar Compilación de funnymdzz via Docker (Bypass de Red Completo)
+    - name: 🚀 7. Procesar Compilación de funnymdzz via Docker Plano (Bypass del Exit Code 1)
       run: |
         cd main_repo
         docker build --no-cache -f Dockerfile.build -t bannerlator-bifrost-11 .
 
-    - name: 📦 7. Instalar Herramientas de Compresión Zstd en el Host
+    - name: 📦 8. Instalar Herramientas de Compresión Zstd en el Host
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 8. Estructurar Árbol de Sistema y Generar Wrapper .tar.zst (Modelo Camuflaje APK)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Wrapper .tar.zst (Modelo Camuflaje APK)
       run: |
         cd main_repo
-        echo "-> Creando jerarquía de directorios estándar de Linux exigida..."
         mkdir -p ./wrapper/usr/lib
         mkdir -p ./wrapper/usr/share/vulkan/icd.d
 
@@ -115,7 +129,6 @@ jobs:
         }
         EOF
 
-        echo "-> Asegurando permisos de ejecución nativos de Linux (CHMOD 755)..."
         chmod 755 ./wrapper/usr/lib/libvulkan_freedreno.so
         chmod 644 ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
 
@@ -128,7 +141,7 @@ jobs:
         tar -I 'zstd -v -19' -cf ../../wrapper.tar.zst usr/
         cd ../..
 
-    - name: 📤 9. Subir Wrapper (.tar.zst) a los Artefactos de GitHub
+    - name: 📤 10. Subir Wrapper (.tar.zst) a los Artefactos de GitHub
       uses: actions/upload-artifact@v4
       with:
         name: panvk-generic-wrapper-zst
