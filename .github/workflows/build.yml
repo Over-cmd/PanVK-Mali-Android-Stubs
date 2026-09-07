@@ -57,7 +57,7 @@ jobs:
         ninja -C build-host src/compiler/clc/mesa_clc src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
         
         ln -sf "src/compiler/clc/mesa_clc" "build-host/src/compiler/clc/mesa-clc"
-        ln -sf "src/compiler/spirv/vtn_bindgen2" "build-host/src/compiler/spirv/vtn-bindgen2"
+        ln -sf "src/compiler/spirv/vtn_bindgen2" "build-host/src/compiler/spirv/vtn-gen2"
         
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/clc" >> $GITHUB_PATH
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/spirv" >> $GITHUB_PATH
@@ -92,8 +92,6 @@ jobs:
         export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
         export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
         
-        # 🟢 TUBERÍAS BIÓNICAS: Forzamos a Meson a ver el pkg-config nativo de PC de forma explicativa 
-        # para que resuelva la linea 1933 de libdrm en el host sin perder el entorno cruzado.
         export PKG_CONFIG="/usr/bin/pkg-config"
         export PKG_CONFIG_FOR_BUILD="/usr/bin/pkg-config"
         export PKG_CONFIG_PATH_FOR_BUILD="/usr/lib/x86_64-linux-gnu/pkgconfig"
@@ -117,6 +115,9 @@ jobs:
             -Dgallium-drivers= \
             -Dshared-glapi=disabled \
             -Dzstd=disabled \
+            # 🟢 LIMITACIÓN HARDWARE MAESTRA: Forzamos unicamente las versiones 6 y 7 (Bifrost)
+            # Esto anula por completo la compilacion de shaders v10/v11 y erradica el core dumped del NIR.
+            -Dpanfrost-version=6,7 \
             -Dmesa-clc=system \
             -Dprecomp-compiler=system \
             -Dvulkan-drivers=panfrost \
