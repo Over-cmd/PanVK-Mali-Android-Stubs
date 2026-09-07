@@ -25,14 +25,19 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Herramientas Base del Sistema Host y Meson Moderno
+    - name: 🔧 3. Instalar Suite XCB, Cabeceras Clang 18, libclc, LLVMSPIRVLib y Forzar Meson Moderno
       run: |
         sudo apt-get update
-        # 🟢 PURIFICACIÓN ATÓMICA: Dejamos solo las herramientas base estándar de Ubuntu 24.04.
-        # Eliminamos los paquetes conflictivos de raíz para erradicar el Exit Code 100 para siempre.
+        # Inyectamos el pool completo de dependencias de PC para que el Host no se queje al activar Panfrost
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
-          gettext flex bison glslang-tools llvm-dev libclang-dev clang rustc cargo python3-pip zip
-        
+          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
+          rustc cargo python3-pip zip libwayland-dev wayland-protocols \
+          libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
+          libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
+          libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
+          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev libclc-18-dev \
+          libllvm-spirv18-dev || sudo apt-get install -y libclc-dev libllvm-spirv-dev
+
         sudo pip3 install --break-system-packages --upgrade meson
         
         echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
@@ -40,19 +45,16 @@ jobs:
         ninja --version
         echo "============================================="
 
-    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa Libre de Dependencias de PC
+    - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Aplicar Parches Planos de Funny
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        # 🟢 EL BYPASS INMUNE DE SHADERS: Apagamos los drivers gráficos en el Host (=none) 
-        # pero forzamos el encendido del compilador de shaders (-Dmesa-clc=enabled).
-        # Esto genera el ejecutable mesa_clc saltándose las revisiones de libclc y LLVMSPIRVLib de escritorio.
-        meson setup build-host -Dgallium-drivers=none -Dvulkan-drivers=none -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs= -Dmesa-clc=enabled
+        # 🟢 JAQUE MATE: Activamos panfrost legítimo en el Host para saciar la regla 556 de Funny, eliminando 'none' para siempre
+        meson setup build-host -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         
-        # Invocamos la forja directa del compilador de shaders nativo x86_64
+        # Compilamos la herramienta nativa exacta
         ninja -C build-host src/compiler/clc/mesa_clc
         
-        # Guardamos el ejecutable nativo en un lugar seguro del repositorio principal
         mkdir -p ../main_repo/native_tools
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
         cd ..
@@ -105,7 +107,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v178)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v177)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
@@ -131,12 +133,12 @@ jobs:
         chmod 755 ./wrapper/usr/lib/libvulkan_freedreno.so
         chmod 644 ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
 
-        # GENERACIÓN SÍNCRONA FORMATO 1: .tar.zst puro manual
+        # GENERACIÓN FORMATO 1: .tar.zst puro manual
         cd wrapper
         tar -I 'zstd -v -19' -cf ../../wrapper.tar.zst usr/
         cd ..
 
-        # GENERACIÓN SÍNCRONA FORMATO 2: .zip limpio para instaladores gráficos automáticos
+        # GENERACIÓN FORMATO 2: .zip limpio para instaladores gráficos
         mkdir -p ./zip_out/usr/lib
         mkdir -p ./zip_out/usr/share/vulkan/icd.d
         cp -fv ./wrapper/usr/lib/libvulkan_freedreno.so ./zip_out/usr/lib/
