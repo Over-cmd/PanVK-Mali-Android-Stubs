@@ -1,4 +1,4 @@
-name: Build PanVK Bifrost Vulkan 1.3 Generic Wrapper (TAR.ZST)
+name: Build PanVK Bifrost Vulkan 1.3 Generic Wrapper (TAR.ZST & ZIP)
 
 on:
   push:
@@ -25,27 +25,31 @@ jobs:
         ref: main
         path: mesa
 
-    - name: 🔧 3. Instalar Herramientas, Cabeceras Clang 18 y Forzar Meson Moderno
+    - name: 🔧 3. Instalar Herramientas, Cabeceras Clang 18, Wayland Scanner y Forzar Meson Moderno
       run: |
         sudo apt-get update
+        # 🟢 INYECCIÓN GRÁFICA MAESTRA: Instalamos libwayland-dev para proveer de forma nativa el comando
+        # wayland-scanner exigido en la linea 11 por el subproyecto de los protocolos de Funny.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
-          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev rustc cargo python3-pip
+          gettext flex bison glslang-tools llvm-dev libclang-dev clang libclang-common-18-dev \
+          rustc cargo python3-pip zip libwayland-dev wayland-protocols
         
         sudo pip3 install --break-system-packages --upgrade meson
         
         echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
         meson --version
         ninja --version
+        wayland-scanner --version || true
         echo "============================================="
 
     - name: 🔧 4. Compilar mesa_clc de Forma Nativa Externa y Aplicar Parches Planos de Funny
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
+        # Configuración purificada elástica para el Mesa sin kernel de Funny
         meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         ninja -C build-host src/compiler/clc/mesa_clc
         
-        # Guardamos el ejecutable nativo en un lugar seguro del repositorio principal
         mkdir -p ../main_repo/native_tools
         cp -fv build-host/src/compiler/clc/mesa_clc ../main_repo/native_tools/mesa_clc
         cd ..
@@ -77,7 +81,6 @@ jobs:
         +int property_get(const char *key, char *value, const char *default_value) { return 0; }
          }
          EOF
-        echo "-> Parches de factoría de Funny estructurados de forma limpia."
 
     - name: 🔧 5. Vincular Android NDK Nativo Completo (Preservar Estructura Interna)
       run: |
@@ -98,9 +101,10 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Wrapper .tar.zst (Modelo Camuflaje APK)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v168)
       run: |
         cd main_repo
+        echo "-> Creando jerarquía de directorios estándar para el TAR..."
         mkdir -p ./wrapper/usr/lib
         mkdir -p ./wrapper/usr/share/vulkan/icd.d
 
@@ -109,7 +113,7 @@ jobs:
         docker cp container-extract:/dist/libvulkan_panfrost.so ./wrapper/usr/lib/libvulkan_freedreno.so
         docker rm container-extract
 
-        echo "-> Creando el archivo manifiesto ICD oficial de Vulkan (Espejo Estructural Actualizado API 1.3)..."
+        echo "-> Creando el archivo manifiesto ICD oficial de Vulkan API 1.3..."
         cat << 'EOF' > ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
         {
             "file_format_version": "1.0.0",
@@ -123,17 +127,25 @@ jobs:
         chmod 755 ./wrapper/usr/lib/libvulkan_freedreno.so
         chmod 644 ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
 
-        echo "=== VERIFICACIÓN DE INTEGRIDAD ESTRUCTURAL EN LA RAÍZ ==="
-        find ./wrapper -print
-        echo "========================================================"
-
-        echo "-> Comprimiendo el árbol usr/ en un Wrapper .tar.zst puro (Nivel 19)..."
+        # GENERACIÓN SÍNCRONA FORMATO 1: .tar.zst puro manual
         cd wrapper
         tar -I 'zstd -v -19' -cf ../../wrapper.tar.zst usr/
+        cd ..
+
+        # GENERACIÓN SÍNCRONA FORMATO 2: .zip limpio para instaladores gráficos automáticos
+        mkdir -p ./zip_out/usr/lib
+        mkdir -p ./zip_out/usr/share/vulkan/icd.d
+        cp -fv ./wrapper/usr/lib/libvulkan_freedreno.so ./zip_out/usr/lib/
+        cp -fv ./wrapper/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json ./zip_out/usr/share/vulkan/icd.d/
+        
+        cd zip_out
+        zip -r ../../wrapper.zip usr/
         cd ../..
 
-    - name: 📤 10. Subir Wrapper (.tar.zst) a los Artefactos de GitHub
+    - name: 📤 10. Subir Ambos Formatos a los Artefactos de GitHub (TAR.ZST & ZIP)
       uses: actions/upload-artifact@v4
       with:
-        name: panvk-generic-wrapper-zst
-        path: wrapper.tar.zst
+        name: panvk-bifrost-driver-pack
+        path: |
+          wrapper.tar.zst
+          wrapper.zip
