@@ -11,7 +11,7 @@ jobs:
     
     strategy:
       matrix:
-        build-type: [release] # Compilación limpia en modo producción optimizada
+        build-type: [release]
 
     steps:
     - name: 📥 1. Clonar tu propio repositorio (Fork)
@@ -51,11 +51,9 @@ jobs:
         meson setup build-host -Dplatforms=[] -Dgallium-drivers=[] -Dvulkan-drivers=[] -Dtools=panfrost -Dprecomp-compiler=enabled -Dinstall-precomp-compiler=true -Dllvm=enabled -Dmesa-clc=enabled -Dinstall-mesa-clc=true
         ninja -C build-host src/compiler/clc/mesa_clc src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
         
-        # Inyectamos los shims simbióticos de guiones que Funny exige para no romper el mapeo
         ln -sf "src/compiler/clc/mesa_clc" "build-host/src/compiler/clc/mesa-clc"
         ln -sf "src/compiler/spirv/vtn_bindgen2" "build-host/src/compiler/spirv/vtn-bindgen2"
         
-        # Enganchamos las rutas directo en las arterias del GITHUB_PATH
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/clc" >> $GITHUB_PATH
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/spirv" >> $GITHUB_PATH
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/panfrost/clc" >> $GITHUB_PATH
@@ -76,18 +74,21 @@ jobs:
                      return 'true'
         EOF
         cd ..
-        # Aplicamos tu parche de extensiones en caliente sobre las fuentes de Funny
         cd mesa && git apply ../main_repo/extensions.patch || true
         cd ..
 
-    - name: 🔧 7. Configurar Meson Cruzado para Android ARM64 (Receta Pura Calibrada)
+    - name: 🔧 7. Calibrar Cross-File Dinámico y Configurar Meson Cruzado para Android
       run: |
+        # 🟢 ASALTO BIÓNICO AL PERMISO: Detectamos la ruta legítima del NDK de la maquina virtual
+        # y sobreescribimos la palabra estática /root/android-ndk por el inodo real con permisos abiertos.
+        REAL_NDK="$ANDROID_NDK_LATEST_HOME"
+        echo "-> NDK del Host detectado en: $REAL_NDK"
+        sed -i "s|/root/android-ndk|$REAL_NDK|g" main_repo/android-aarch64
+
         cd mesa
-        # Apuntamos el NDK al SDK nativo ultra-actualizado preinstalado en el Host de GitHub
         export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
         export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
         
-        # Ejecutamos la configuración híbrida exacta que amarra tu Mali G52 con Termux-X11
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -97,6 +98,7 @@ jobs:
             -Dplatform-sdk-version=30 \
             -Dglx=disabled \
             -Dgbm=disabled \
+            -Ddisabled=disabled \
             -Degl=disabled \
             -Dopengl=false \
             -Dgles1=disabled \
@@ -112,7 +114,7 @@ jobs:
             -Dllvm=disabled \
             -Dpanfrost-kmds=kbase,panthor
             
-    - name: 🚀 8. Compilar Proyecto en el Mismo Suelo via Ninja Nacio
+    - name: 🚀 8. Compilar Proyecto en el Mismo Suelo via Ninja Nativo
       run: |
         cd mesa
         meson compile -C build
@@ -122,7 +124,6 @@ jobs:
         mkdir -p ./wrapper/usr/lib
         mkdir -p ./wrapper/usr/share/vulkan/icd.d
 
-        # Capturamos el binario real generado y activamos el disfraz de Qualcomm
         cp -fv ./mesa/build/src/panfrost/vulkan/libvulkan_panfrost.so ./wrapper/usr/lib/libvulkan_freedreno.so
 
         echo "-> Creando el archivo manifiesto ICD oficial de Vulkan API 1.3..."
@@ -141,12 +142,10 @@ jobs:
 
     - name: 🛠️ 10. Forjar Empaquetado Doble Extremo (.TAR.ZST & .ZIP)
       run: |
-        # Saco 1: .tar.zst manual
         cd wrapper
         tar -I 'zstd -v -19' -cf ../wrapper.tar.zst usr/
         cd ..
 
-        # Saco 2: .zip grafico automatico
         mkdir -p ./zip_out/usr/lib
         mkdir -p ./zip_out/usr/share/vulkan/icd.d
         cp -fv ./wrapper/usr/lib/libvulkan_freedreno.so ./zip_out/usr/lib/
