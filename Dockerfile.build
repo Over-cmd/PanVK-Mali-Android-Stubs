@@ -33,16 +33,15 @@ COPY native_tools /root/native_tools
 ENV ANDROID_NDK_HOME=/root/android-ndk
 ENV PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
 
-# Ejecutamos la compilación cruzada apuntando directamente al mesa_clc externo
+# 🟢 EXPOSITOR DE LOGS ATÓMICO: Encapsulamos el setup en un bloque condicional. 
+# Si falla, imprimirá el meson-log.txt completo en la consola de GitHub antes de abortar.
 RUN cd /root/mesa \
-    && meson setup build-android \
+    && (meson setup build-android \
         --cross-file /root/android-aarch64 \
         -Dplatforms=android \
         -Dplatform-sdk-version=30 \
         -Dgallium-drivers= \
         -Dvulkan-drivers=panfrost \
-        # 🟢 PARCHE DE COMPILACIÓN SEGURO: Eliminamos panfrost-version=6 que causaba el bloqueo 
-        # e inyectamos la dupla kbase,panthor calcando el layout de producción del maestro Funny.
         -Dpanfrost-kmds=kbase,panthor \
         -Dbuild-compile-tools=false \
         -Dexternal-mesa-clc=/root/native_tools/mesa_clc \
@@ -52,8 +51,8 @@ RUN cd /root/mesa \
         -Dllvm=disabled \
         -Dshared-llvm=disabled \
         -Degl=enabled \
-        -Dglx=disabled \
-    && ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so
+        -Dglx=disabled || (cat build-android/meson-logs/meson-log.txt && exit 1)) \
+    && (ninja -C build-android src/panfrost/vulkan/libvulkan_panfrost.so || (cat build-android/meson-logs/meson-log.txt && exit 1))
 
 # Exportamos el binario final unificado de 59MB hacia la carpeta raíz de extracción
 RUN mkdir -p /dist \
