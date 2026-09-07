@@ -47,11 +47,12 @@ jobs:
       run: |
         echo "-> Compilando el clon nativo de mesa_clc directo en el Host con Meson Moderno..."
         cd mesa
-        meson setup build-host -Dgallium-drivers= -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
+        # 🟢 GATILLO MAESTRO REFORZADO: Activamos -Dgallium-drivers=panfrost en el Host.
+        # Esto hace saltar la regla de la linea 556 de su meson.build obligando a inyectar mesa_clc en Ninja.
+        meson setup build-host -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dglx=disabled -Degl=disabled -Dgbm=disabled -Dbuild-tests=false -Dvideo-codecs=
         
-        # 🟢 CORRECCIÓN SUPREMA DE OBJETIVO: Cambiamos la ruta vieja por el nombre de target plano 'mesa_clc'
-        # para que Ninja localice el inodo de preprocesado de Funny al primer milisegundo.
-        ninja -C build-host mesa_clc
+        # Invocamos la ruta de preprocesado nativa exacta de su arbol de directorios
+        ninja -C build-host src/compiler/clc/mesa_clc
         
         # Guardamos el ejecutable nativo en un lugar seguro del repositorio principal
         mkdir -p ../main_repo/native_tools
@@ -106,7 +107,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt-get install -y zstd tar
 
-    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v166)
+    - name: 🛠️ 9. Estructurar Árbol de Sistema y Generar Ambos Paquetes (Camuflaje Total v174)
       run: |
         cd main_repo
         echo "-> Creando jerarquía de directorios estándar para el TAR..."
