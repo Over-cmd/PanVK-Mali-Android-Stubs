@@ -32,17 +32,19 @@ jobs:
         sed -i 's/#if defined(HAVE_MEMFD_CREATE) \&\& !defined __TERMUX__/#if defined(HAVE_MEMFD_CREATE)/' src/util/anon_file.c
         cd ..
 
-    - name: 🔧 4. Instalar Suite XCB, Cabeceras Clang y LLVM-20 Nativos del Sistema
+    - name: 🔧 4. Instalar Suite XCB, Cabeceras Clang, libdrm y LLVM-20 Nativos del Sistema
       run: |
         sudo apt-get update
+        # 🟢 INYECCIÓN DE CONTROLADORES MAESTRA: Instalamos libdrm-dev e intel-gpu-tools/herramientas base
+        # para proveer de forma nativa los archivos .pc exigidos estrictamente por la linea 1933 de Funny.
         sudo apt-get install -y ninja-build pkg-config python3-mako python3-ply python3-yaml \
           gettext flex bison glslang-tools rustc cargo python3-pip zip libwayland-dev wayland-protocols \
           libxcb1-dev libx11-xcb-dev libxcb-dri3-dev libxcb-randr0-dev libxcb-xfixes0-dev \
           libxcb-dri2-0-dev libxcb-shm0-dev libxcb-glx0-dev libxcb-keysyms1-dev \
           libxcb-present-dev libxcb-sync-dev libxcb-xinerama0-dev libxshmfence-dev \
-          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev
+          libxrandr-dev libxrender-dev libxext-dev libx11-dev x11proto-dev libdrm-dev
         
-        sudo apt-get install -y llvm-20-dev libclang-20-dev libclc-20-dev libllvmspirvlib-20-dev spirv-tools libelf-dev libdrm-dev
+        sudo apt-get install -y llvm-20-dev libclang-20-dev libclc-20-dev libllvmspirvlib-20-dev spirv-tools libelf-dev
         sudo pip3 install --break-system-packages --ignore-installed mako PyYAML meson ninja packaging
 
         echo "=== VERIFICACIÓN DE VERSIONES EN EL HOST ==="
@@ -92,7 +94,8 @@ jobs:
         export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
         export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
         
-        # 🟢 CONFI PURIFICADA: Removemos de golpe la flag fantasma -Ddisabled=disabled que trababa el script
+        # 🟢 CALIBRACIÓN ANTI-REBOTE: Inyectamos -Ddraw-with-llvm=false para indicarle al compilador 
+        # que ignore el enlazador de renderizado por software de PC en el Target de Android.
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -114,6 +117,7 @@ jobs:
             -Dmesa-clc=system \
             -Dprecomp-compiler=system \
             -Dvulkan-drivers=panfrost \
+            -Ddraw-with-llvm=false \
             -Dllvm=disabled \
             -Dpanfrost-kmds=kbase,panthor
             
