@@ -68,7 +68,7 @@ jobs:
       run: |
         cd main_repo
         cat << 'EOF' > ./extensions.patch
-        --- a/src/vulkan/util/vk_extensions.py
+        --- b/src/vulkan/util/vk_extensions.py
         +++ b/src/vulkan/util/vk_extensions.py
         @@ -50,6 +50,7 @@ class Extension:
              return ext
@@ -97,9 +97,7 @@ jobs:
         export PKG_CONFIG_PATH_FOR_BUILD="/usr/lib/x86_64-linux-gnu/pkgconfig"
         export PKG_CONFIG_PATH="$REAL_NDK/prebuilt/linux-x86_64/lib/pkgconfig"
 
-        # 🟢 BYPASS DE LLVM EMBEBIDO: Desactivamos rusticl y opencl-spirv de forma explicita.
-        # Esto convence a Meson de que el driver de Vulkan no requiere hilos de LLVM cruzados,
-        # obligándolo a ignorar el archivo llvm.wrap inexistente en la linea 2016.
+        # 🟢 CONFIGURACIÓN SANEADA TOTAL: Removemos la bandera panfrost-version obsoleta
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -118,7 +116,6 @@ jobs:
             -Dgallium-drivers= \
             -Dshared-glapi=disabled \
             -Dzstd=disabled \
-            -Dpanfrost-version=6,7 \
             -Dgallium-rusticl=false \
             -Dopencl-spirv=false \
             -Dmesa-clc=system \
