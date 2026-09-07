@@ -57,7 +57,7 @@ jobs:
         ninja -C build-host src/compiler/clc/mesa_clc src/compiler/spirv/vtn_bindgen2 src/panfrost/clc/panfrost_compile
         
         ln -sf "src/compiler/clc/mesa_clc" "build-host/src/compiler/clc/mesa-clc"
-        ln -sf "src/compiler/spirv/vtn_bindgen2" "build-host/src/compiler/spirv/vtn-gen2"
+        ln -sf "src/compiler/spirv/vtn_bindgen2" "build-host/src/compiler/spirv/vtn-bindgen2"
         
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/clc" >> $GITHUB_PATH
         echo "$GITHUB_WORKSPACE/mesa/build-host/src/compiler/spirv" >> $GITHUB_PATH
@@ -89,12 +89,12 @@ jobs:
         sed -i "s|/root/android-ndk|$REAL_NDK|g" main_repo/android-aarch64
 
         cd mesa
-        # 🟢 AMARRE DE ARTERIAS: Forzamos las variables del sistema para el Host y el Target de Android
         export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
         export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
         export PKG_CONFIG_FOR_BUILD="pkg-config"
         export PKG_CONFIG_PATH="$REAL_NDK/prebuilt/linux-x86_64/lib/pkgconfig"
 
+        # 🟢 CONFI SANADA: Borramos la flag experimental -Dintel-clc=disabled que trababa el script
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
@@ -113,7 +113,6 @@ jobs:
             -Dgallium-drivers= \
             -Dshared-glapi=disabled \
             -Dzstd=disabled \
-            -Dintel-clc=disabled \
             -Dmesa-clc=system \
             -Dprecomp-compiler=system \
             -Dvulkan-drivers=panfrost \
