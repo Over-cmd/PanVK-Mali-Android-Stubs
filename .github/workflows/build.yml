@@ -91,10 +91,14 @@ jobs:
         cd mesa
         export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
         export MESON_WORKING_DIR="$GITHUB_WORKSPACE"
-        export PKG_CONFIG_FOR_BUILD="pkg-config"
+        
+        # 🟢 TUBERÍAS BIÓNICAS: Forzamos a Meson a ver el pkg-config nativo de PC de forma explicativa 
+        # para que resuelva la linea 1933 de libdrm en el host sin perder el entorno cruzado.
+        export PKG_CONFIG="/usr/bin/pkg-config"
+        export PKG_CONFIG_FOR_BUILD="/usr/bin/pkg-config"
+        export PKG_CONFIG_PATH_FOR_BUILD="/usr/lib/x86_64-linux-gnu/pkgconfig"
         export PKG_CONFIG_PATH="$REAL_NDK/prebuilt/linux-x86_64/lib/pkgconfig"
 
-        # 🟢 CONFI SANADA: Borramos la flag experimental -Dintel-clc=disabled que trababa el script
         meson setup build --reconfigure \
             --cross-file ../main_repo/android-aarch64 \
             -Dbuildtype=${{ matrix.build-type }} \
